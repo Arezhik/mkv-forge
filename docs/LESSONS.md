@@ -30,3 +30,4 @@ These came from building and testing earlier macOS apps with the same layout. Co
 | L24 | Agents on Linux couldn't run spikes that needed Apple frameworks, and some PRs didn't say what was checked where. | Each PR says what ran on Linux and what only macOS CI or a Mac test covers. |
 | L25 | Large PRs that closed several issues sat open the longest and collided with other PRs. | One issue per PR when you can. Stack PRs when one depends on another. |
 | L26 | One PR was merged before it was tried on a real file. | Say plainly in the PR when something wasn't tested on real input. |
+| L27 | Under the C/POSIX locale (an app opened from Finder, the swift Docker image), mkvmerge cut file names at the first non-ASCII byte and still exited 0. | Every tool run gets `LC_ALL` set to a UTF-8 locale that exists: `en_US.UTF-8` on macOS, `C.UTF-8` on Linux (`ToolEnvironment`). The real-mkvmerge test runs under `LC_ALL=C` and uses a name with `é`. |

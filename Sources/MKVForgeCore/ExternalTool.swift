@@ -18,6 +18,9 @@ import Musl
 // - Cancelling the calling Task kills the process with SIGKILL. terminate() alone was
 //   not enough on Linux when called off the launching thread.
 // - The version is recorded at launch and in the exported debug log header.
+// - Every run gets LC_ALL set to a UTF-8 locale (`ToolEnvironment`). Under the C or
+//   POSIX locale, which an app opened from Finder and the swift Docker image both get,
+//   mkvmerge cuts file names at the first non-ASCII byte and still exits 0.
 
 /// What to look for. Edit `ExternalToolSpec.primary` for this app.
 public struct ExternalToolSpec: Equatable, Sendable {
@@ -154,6 +157,7 @@ public enum ExternalTool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        process.environment = ToolEnvironment.forTools()
         process.standardInput = FileHandle.nullDevice
         let stdout = Pipe()
         process.standardOutput = stdout
@@ -171,6 +175,25 @@ public enum ExternalTool {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let line, !line.isEmpty else { return nil }
         return line
+    }
+}
+
+/// The environment every tool run gets: the app's own, with `LC_ALL` forced to a UTF-8
+/// locale that exists on this platform. mkvmerge converts arguments and file names with
+/// the locale's character set. Under C or POSIX it silently cuts "Show [é].mkv" to
+/// "Show [", and an LC_* value naming a locale that isn't installed makes it abort. macOS
+/// has no C.UTF-8 and minimal Linux images have no en_US.UTF-8, hence one name each.
+public enum ToolEnvironment {
+    #if canImport(Darwin)
+    public static let utf8Locale = "en_US.UTF-8"
+    #else
+    public static let utf8Locale = "C.UTF-8"
+    #endif
+
+    public static func forTools(inheriting inherited: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        var environment = inherited
+        environment["LC_ALL"] = utf8Locale
+        return environment
     }
 }
 
@@ -265,6 +288,7 @@ private final class CommandRunner: @unchecked Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        process.environment = ToolEnvironment.forTools()
         process.standardInput = FileHandle.nullDevice
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

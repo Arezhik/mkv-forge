@@ -10,8 +10,13 @@ final class MKVMergeIntegrationTests: XCTestCase {
     private static let vp8IVFBase64 = "REtJRgAAIABWUDgwEAAQAAEAAAABAAAAAgAAAAAAAAAfAAAAAAAAAAAAAAAQAgCdASoQABAAAEcIhYWImYSIAgIADA1gAP7/q1CAFQAAAAEAAAAAAAAAsQEAARAQABgAMD/0DAAAAP7/q1CA"
 
     private var root = ""
+    private var savedLocale: String?
 
     override func setUpWithError() throws {
+        // The app must not depend on the caller's locale: run as if launched under C,
+        // where mkvmerge would cut "[é]" off the file names (ToolEnvironment).
+        savedLocale = ProcessInfo.processInfo.environment["LC_ALL"]
+        setenv("LC_ALL", "C", 1)
         root = FileManager.default.temporaryDirectory.appendingPathComponent("mkvforge-it-\(UUID().uuidString)").path
         for folder in ["inputs", "Rips", "Audio", "Video", "Finished"] {
             try FileManager.default.createDirectory(atPath: "\(root)/\(folder)", withIntermediateDirectories: true)
@@ -20,6 +25,7 @@ final class MKVMergeIntegrationTests: XCTestCase {
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(atPath: root)
+        if let savedLocale { setenv("LC_ALL", savedLocale, 1) } else { unsetenv("LC_ALL") }
     }
 
     private func mkvmerge() throws -> String {
