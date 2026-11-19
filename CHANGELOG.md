@@ -6,6 +6,12 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-19 (build 3)
+### Added
+- Running Split and Remux in the core package (#3): one file at a time with the installed mkvmerge, exit 0 = Done, 1 = Done · warning, 2 = Failed, and the batch keeps going after a failure. Output goes to a hidden temp file that is renamed only on success and never replaces an existing file. Each file is re-checked right before it runs. Cancel finishes the current file, then stops. Per-file reasons and the batch summary use the layout contract's text. Nothing in the app window changes until the App UI phase (#5).
+### Changed
+- AGENTS.md, README.md and docs/LESSONS.md L19: never hand-edit project.pbxproj; App/project.yml plus `xcodegen generate` is the source of truth. AGENTS.md: existing output is never overwritten. docs/LESSONS.md: L28 and L29.
+
 ## [0.2.0] - 2026-11-18 (build 2)
 ### Added
 - Scanning and checks for Split and Remux in the core package (#2): top-level folder scan, exact base-name pairing, every validation rule from docs/scaffold.md, `mkvmerge -J` parsing, and the Split and Remux command builders. Nothing in the app window changes until the App UI phase (#5).

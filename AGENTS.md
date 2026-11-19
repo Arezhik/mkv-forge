@@ -14,8 +14,7 @@ Read this before the first change. The reasons behind each rule are in docs/LESS
 - The Linux gate is CI's Linux job: `bash scripts/bump-version.sh --check`, `bash scripts/check-project.sh`, then `swift test` and `swift build`, both with `-Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`. Run all of them before you open the PR.
 
 ## Project files
-- There's no XcodeGen on the Linux VMs. The checked-in `App/MKVForge.xcodeproj/project.pbxproj` is the source of truth, and `App/project.yml` is the backup recipe. If you add, rename, or remove an app `.swift` file, edit `project.pbxproj` by hand (PBXFileReference, PBXBuildFile, the App group, the Sources phase, using new unique IDs in the existing `A1…` style) and keep `App/project.yml` matching. `scripts/check-project.sh` fails if they drift (L19).
-- Never regenerate or reformat the whole pbxproj. Change only the lines your file needs, so other open PRs still apply.
+- Never hand-edit `App/MKVForge.xcodeproj/project.pbxproj`. To add, rename, or remove an app `.swift` file, or change any other project setting, update `App/project.yml` and run `xcodegen generate` in `App/`, then commit both files. The Linux VMs have no XcodeGen, so a change that needs it is made on a Mac; on Linux, stop and say so in the PR instead of editing the pbxproj. The only exception is `scripts/bump-version.sh`, which changes the version lines. `scripts/check-project.sh` fails if the two files drift (L19).
 - No two tracked paths may differ only by letter case (Macs use a case-insensitive disk). Name extra schemes and targets so they differ by more than case (L17).
 - Diagnostic environment variables don't go in the shared scheme. Read them from the environment, and print their state in the debug log header (L21).
 
@@ -30,9 +29,10 @@ Read this before the first change. The reasons behind each rule are in docs/LESS
 - Every toolbar item is also in the menu bar. Settings opens with `SettingsLink` or `openSettings` (L4).
 - No drag and drop, no Open…, no Dock drops or Open With. Folders come only from Choose… buttons, and a scan reads only the top level of each folder (docs/scaffold.md). Slow folder scans stay off the main thread (L16).
 - Never delete source files on disk. Queue behavior (checkboxes, flagged rows, the finish summary) follows docs/design/v1-layout-contract_v2.md (L6).
-- Existing output: ask once per batch with "Apply to all", or follow the Settings choice. Never ask per file mid-batch (L12).
+- Existing output is flagged at scan and never overwritten (docs/scaffold.md). If an output appears while its file is running, that file fails and the new copy is deleted. v1 has no overwrite prompt.
 - Reveal in Finder checks the file exists first, uses `activateFileViewerSelecting`, and logs the call (L7).
 - External tool (`mkvmerge`): search `/opt/homebrew/bin`, `/usr/local/bin`, `/Applications/MKVToolNix*.app/Contents/MacOS`, then `PATH`. Log the command, exit code, and stderr (cut at 2,000 characters). Show a clear message when it's missing. Cancel kills a running process. If Settings let the user choose a copy, a chosen copy that's missing is an error, not a silent fallback (L15).
+- Running mkvmerge (`BatchRunner`): one file at a time. Right before each file, check that the Output folder and inputs still exist, the output is still absent, and a fresh `mkvmerge -J` matches the scan; mkvmerge silently recreates a missing output folder (L29). mkvmerge writes a hidden temp `.<base>.partial.<ext>` in the Output folder, renamed with `FileManager.moveItem` (never replaces a file) only on exit 0 or 1. Its warnings and errors are on stdout, not stderr (L28). Cancel finishes the current file, then stops; a hard stop kills mkvmerge and deletes the temp.
 - Log through `DebugLog.shared.record(...)`: launch, settings, each file's start, finish, and error, window events, saves, and Reveal. No user content. Home becomes `~` (L13).
 
 ## Scope, tests, and review

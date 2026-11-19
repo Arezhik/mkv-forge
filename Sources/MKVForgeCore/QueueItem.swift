@@ -7,32 +7,83 @@ import Foundation
 // - Removing a row never deletes the output file on disk.
 // - An empty queue shows the empty state (MKVForge has no drop screen).
 
-/// Where one queued file is.
+/// Where one queued file is. The texts follow docs/design/v1-layout-contract_v2.md §4.
 public enum JobStatus: Equatable, Sendable {
     case waiting
-    /// `completed` of `total` units, such as pictures or tracks. `total` 0 means unknown.
-    case working(completed: Int, total: Int)
+    /// The current file. There's no per-file percentage (contract v2 §4).
+    case working
+    /// mkvmerge exit 0, and the output is in place.
     case done(outputPath: String)
-    case failed(reason: String)
+    /// mkvmerge exit 1: the output is in place. `warnings` are mkvmerge's `Warning:` lines.
+    case doneWithWarning(outputPath: String, warnings: [String])
+    /// `reason` goes in the Reason column; `detail` (raw mkvmerge output) in its help tag.
+    case failed(reason: String, detail: String)
+    /// Cancel stopped the batch before this row started. The row shows Ready again.
+    case notRun
     case skipped(reason: String)
+    /// A hard stop (app quit) killed mkvmerge on this row. Its temp file is deleted.
     case canceled
+
+    /// Reason shown on Waiting rows while Cancel waits for the current file.
+    public static let wontStartReason = "Won't start: batch cancelled"
 
     /// Waiting or working. Cancel and Cancel All apply.
     public var isActive: Bool {
         switch self {
         case .waiting, .working: return true
-        case .done, .failed, .skipped, .canceled: return false
+        case .done, .doneWithWarning, .failed, .notRun, .skipped, .canceled: return false
         }
     }
 
     /// Clear Finished and the row ✕ apply.
     public var isRemovable: Bool { !isActive }
 
-    /// True when `next` only moves a progress counter. Those updates are throttled;
+    /// True when `next` only repeats the working state. Those updates are throttled;
     /// every other change (start, done, failed) is published right away.
     public func isProgressTick(to next: JobStatus) -> Bool {
-        if case .working = self, case .working = next { return true }
-        return false
+        self == .working && next == .working
+    }
+
+    /// The Status column text. `mode` picks Splitting… or Remuxing….
+    public func statusText(mode: ScanMode) -> String {
+        switch self {
+        case .waiting: return "Waiting"
+        case .working: return mode == .split ? "Splitting…" : "Remuxing…"
+        case .done: return "Done"
+        case .doneWithWarning: return "Done · warning"
+        case .failed: return "Failed"
+        case .notRun: return "Ready"
+        case .skipped: return "Skipped"
+        case .canceled: return "Cancelled"
+        }
+    }
+
+    /// The Reason column. Nil shows as —.
+    public var reasonText: String? {
+        switch self {
+        case let .doneWithWarning(_, warnings): return MKVMergeOutput.warningReason(warnings)
+        case let .failed(reason, _): return reason
+        case let .skipped(reason): return reason
+        case .waiting, .working, .done, .notRun, .canceled: return nil
+        }
+    }
+
+    /// The Reason help tag: every warning line, or the raw mkvmerge output of a failure.
+    public var helpText: String? {
+        switch self {
+        case let .doneWithWarning(_, warnings): return MKVMergeOutput.warningHelp(warnings)
+        case let .failed(reason, detail): return detail.isEmpty ? reason : detail
+        case let .skipped(reason): return reason
+        case .waiting, .working, .done, .notRun, .canceled: return nil
+        }
+    }
+
+    /// The written file, for Done and Done · warning rows.
+    public var outputPath: String? {
+        switch self {
+        case let .done(path), let .doneWithWarning(path, _): return path
+        default: return nil
+        }
     }
 }
 

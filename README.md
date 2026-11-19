@@ -25,7 +25,7 @@ The project is set to **Sign to Run Locally**, so no Apple Developer team is nee
 - The Xcode project is in `App/`, one folder down, and has a different name from the package. Xcode's window reports the package products as missing when the two share a name and a folder.
 - Debug builds only the chip in your Mac. Release builds both arm64 and x86_64.
 - The app isn't sandboxed, so it can write output next to the input file.
-- `App/project.yml` is an optional [XcodeGen](https://github.com/yonaskolb/XcodeGen) recipe for regenerating the project. The checked-in `.xcodeproj` is the one to open.
+- `App/project.yml` and [XcodeGen](https://github.com/yonaskolb/XcodeGen) are the source of truth for the Xcode project. Never hand-edit `project.pbxproj`: change `App/project.yml`, run `xcodegen generate` in `App/` on a Mac, and commit both. The only exception is `scripts/bump-version.sh`, which edits the version lines. Open the checked-in `App/MKVForge.xcodeproj` to build.
 
 ## Download the app that GitHub built
 1. On GitHub, open **Actions** and choose the latest green **CI** run.
