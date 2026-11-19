@@ -51,4 +51,13 @@ final class ExternalToolTests: XCTestCase {
         }
     }
     #endif
+
+    func testToolsAlwaysGetAUTF8Locale() {
+        let environment = ToolEnvironment.forTools(inheriting: ["PATH": "/usr/bin", "LC_ALL": "C", "LANG": "de_DE.UTF-8"])
+        XCTAssertEqual(environment["LC_ALL"], ToolEnvironment.utf8Locale)
+        XCTAssertEqual(environment["PATH"], "/usr/bin")
+        XCTAssertEqual(environment["LANG"], "de_DE.UTF-8")
+        XCTAssertEqual(ToolEnvironment.forTools(inheriting: [:])["LC_ALL"], ToolEnvironment.utf8Locale)
+        XCTAssertTrue(ToolEnvironment.utf8Locale.hasSuffix(".UTF-8"))
+    }
 }

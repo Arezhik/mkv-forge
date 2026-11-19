@@ -42,7 +42,7 @@ Read this before the first change. The reasons behind each rule are in docs/LESS
 - Say plainly when something wasn't tested on real input (L26).
 
 ## Versioning
-- SemVer. In the same PR, run `scripts/bump-version.sh patch` for a bug fix or small tweak, `minor` for a new feature, or `major` for a major enhancement or new phase. Docs-only and CI-only PRs don't bump.
+- SemVer. In the same PR, run `scripts/bump-version.sh patch` for a bug fix or small tweak, `minor` for a new feature, or `major` for a major enhancement or breaking change. A new phase is usually `minor`; 1.0.0 is the v1 release. Docs-only and CI-only PRs don't bump.
 - The build number goes up by 1 with every bump and is never reused. Don't edit the version by hand; the script keeps project.pbxproj, project.yml, and CHANGELOG.md in sync.
 - If `main` moved after your bump (another PR merged with a bump), run `scripts/bump-version.sh --rebase origin/main patch|minor|major` to recompute from `main`'s version, then fix the CHANGELOG heading it reports. CI fails a PR whose build number isn't above `main`'s (L20).
 - Fill in the CHANGELOG.md entry. Put `Version bump: old to new (rule)` in the PR description. Arezhik confirms it at merge.

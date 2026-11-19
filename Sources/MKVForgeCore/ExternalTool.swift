@@ -18,6 +18,9 @@ import Musl
 // - Cancelling the calling Task kills the process with SIGKILL. terminate() alone was
 //   not enough on Linux when called off the launching thread.
 // - The version is recorded at launch and in the exported debug log header.
+// - Every run gets LC_ALL set to a UTF-8 locale (`ToolEnvironment`). Under the C or
+//   POSIX locale, which an app opened from Finder and the swift Docker image both get,
+//   mkvmerge cuts file names at the first non-ASCII byte and still exits 0.
 
 /// What to look for. Edit `ExternalToolSpec.primary` for this app.
 public struct ExternalToolSpec: Equatable, Sendable {
@@ -119,11 +122,42 @@ public enum ExternalTool {
         return found.isEmpty ? nil : ExternalToolPaths(paths: found)
     }
 
+    /// The copy the user chose in Settings, when there is one. `chosen` may be the
+    /// executable itself, an app bundle such as `MKVToolNix-103.app`, or the folder that
+    /// holds the executables. A chosen copy that can't be found is not found: there's no
+    /// silent fallback to the default search (AGENTS.md, L15). With no choice, this is
+    /// the default search.
+    public static func locate(_ spec: ExternalToolSpec = .primary, chosen: String?) -> ExternalToolPaths? {
+        guard let chosen, !chosen.isEmpty else { return locate(spec) }
+        return locate(spec, chosen: chosen, executableExists: { FileManager.default.isExecutableFile(atPath: $0) })
+    }
+
+    public static func locate(_ spec: ExternalToolSpec, chosen: String, executableExists: (String) -> Bool) -> ExternalToolPaths? {
+        let trimmed = chosen.hasSuffix("/") && chosen.count > 1 ? String(chosen.dropLast()) : chosen
+        let folder: String
+        if spec.executables.contains((trimmed as NSString).lastPathComponent) {
+            // The executable itself; the others live next to it.
+            folder = (trimmed as NSString).deletingLastPathComponent
+        } else if trimmed.hasSuffix(".app") {
+            folder = trimmed + "/Contents/MacOS"
+        } else {
+            folder = trimmed
+        }
+        var found: [String: String] = [:]
+        for executable in spec.executables {
+            let path = (folder as NSString).appendingPathComponent(executable)
+            guard executableExists(path) else { return nil }
+            found[executable] = path
+        }
+        return found.isEmpty ? nil : ExternalToolPaths(paths: found)
+    }
+
     /// The first line the tool prints for its version arguments.
     public static func version(of executable: String, arguments: [String] = ExternalToolSpec.primary.versionArguments) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        process.environment = ToolEnvironment.forTools()
         process.standardInput = FileHandle.nullDevice
         let stdout = Pipe()
         process.standardOutput = stdout
@@ -141,6 +175,25 @@ public enum ExternalTool {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let line, !line.isEmpty else { return nil }
         return line
+    }
+}
+
+/// The environment every tool run gets: the app's own, with `LC_ALL` forced to a UTF-8
+/// locale that exists on this platform. mkvmerge converts arguments and file names with
+/// the locale's character set. Under C or POSIX it silently cuts "Show [é].mkv" to
+/// "Show [", and an LC_* value naming a locale that isn't installed makes it abort. macOS
+/// has no C.UTF-8 and minimal Linux images have no en_US.UTF-8, hence one name each.
+public enum ToolEnvironment {
+    #if canImport(Darwin)
+    public static let utf8Locale = "en_US.UTF-8"
+    #else
+    public static let utf8Locale = "C.UTF-8"
+    #endif
+
+    public static func forTools(inheriting inherited: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        var environment = inherited
+        environment["LC_ALL"] = utf8Locale
+        return environment
     }
 }
 
@@ -235,6 +288,7 @@ private final class CommandRunner: @unchecked Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        process.environment = ToolEnvironment.forTools()
         process.standardInput = FileHandle.nullDevice
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

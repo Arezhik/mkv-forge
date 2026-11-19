@@ -33,7 +33,7 @@ The project is set to **Sign to Run Locally**, so no Apple Developer team is nee
 3. The app isn't signed or notarized. Right-click it and choose **Open**, or go to **System Settings → Privacy & Security** and click **Open Anyway**. If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /path/to/MKVForge.app`.
 
 ## Versioning
-The version is MAJOR.MINOR.PATCH (shown in About MKVForge), plus a build number that goes up by 1 on every merged PR. Bump it in the same PR as the change with `scripts/bump-version.sh patch|minor|major`: patch for a bug fix or small tweak, minor for a new feature, and major for a major enhancement or a new phase. Docs-only and CI-only PRs don't bump. Each version gets an entry in CHANGELOG.md.
+The version is MAJOR.MINOR.PATCH (shown in About MKVForge), plus a build number that goes up by 1 on every merged PR. Bump it in the same PR as the change with `scripts/bump-version.sh patch|minor|major`: patch for a bug fix or small tweak, minor for a new feature, and major for a major enhancement or breaking change (a new phase is usually minor). Docs-only and CI-only PRs don't bump. Each version gets an entry in CHANGELOG.md.
 
 ## For developers
 ```bash

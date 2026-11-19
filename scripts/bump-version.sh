@@ -15,7 +15,8 @@
 # Rules (Semantic Versioning, MAJOR.MINOR.PATCH):
 #   patch  bug fix or small tweak                 0.1.0 -> 0.1.1
 #   minor  normal enhancement or new feature      0.1.1 -> 0.2.0
-#   major  major enhancement or a new phase       0.2.0 -> 1.0.0
+#   major  major enhancement or breaking change   0.2.0 -> 1.0.0
+#   A new phase is usually a minor bump; 1.0.0 is the v1 release.
 #   Every bump also adds 1 to the build number. Docs-only or CI-only PRs don't bump.
 #
 # Two open PRs that both bump collide on the same version lines. Whichever merges
@@ -154,7 +155,7 @@ NEWBUILD=$((BUILD + 1))
 case "$MODE" in
   patch) RULE="patch: bug fix or small tweak"; SECTION="Fixed" ;;
   minor) RULE="minor: enhancement or new feature"; SECTION="Added" ;;
-  major) RULE="major: major enhancement or new phase"; SECTION="Added" ;;
+  major) RULE="major: major enhancement or breaking change"; SECTION="Added" ;;
 esac
 echo "Version bump: $OLD (build $OLDBUILD) to $NEW (build $NEWBUILD) ($RULE)"
 [ "$DRY" -eq 1 ] && exit 0
