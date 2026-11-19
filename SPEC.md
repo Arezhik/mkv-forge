@@ -15,6 +15,7 @@ For Arezhik, on his own Macs: split full `.mkv` files into `.mka` (audio, subtit
 - Input: folders chosen with Choose… buttons only. No drag and drop, Open…, Dock drops, or Open With. Top-level files only.
 - Existing output: flagged on scan and never overwritten.
 - External tool: `mkvmerge` from MKVToolNix (Homebrew paths, then `/Applications/MKVToolNix*.app`, then a Settings override in the app UI phase).
+- Stripping: languages are written as `und` and every track flag as 0, because Matroska reads a missing language as English and a missing default flag as on. Remux clears the video track the same way. `--no-date` is added to both commands.
 
 ## Architecture
 - `MKVForgeKit` package (`Sources/MKVForgeCore`): all logic that doesn't need AppKit, testable on Linux.
@@ -23,7 +24,7 @@ For Arezhik, on his own Macs: split full `.mkv` files into `.mka` (audio, subtit
 
 ## Phases (one PR each)
 1. **Setup** (this PR, issue #1): repo from the boilerplate, hybrid layout, CI with the universal macOS build, `.cursor/environment.json`, `docs/LESSONS.md`. The app opens one placeholder window that reports whether `mkvmerge` was found. Settings shows the same. Help > Export Debug Log works.
-2. **Scanning and checks**: scanner, `--identify-json` parsing, validation rules, Split/Remux command builders; unit tests.
+2. **Scanning and checks**: scanner, `mkvmerge -J` parsing, validation rules, Split/Remux command builders; unit tests plus one test that runs the real mkvmerge on a generated file when it's installed (Linux CI).
 3. **Running**: `mkvmerge` execution, exit codes, temp-file rename, cancel after current, per-file errors and summary.
 4. **Design**: done (docs/design/v1-layout-contract_v2.md).
 5. **App UI**: the layout contract, Settings with the MKVToolNix location.

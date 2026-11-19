@@ -43,7 +43,7 @@ The action is called **Split** everywhere in the app (heading, button, menu item
 ### Steps
 1. User picks the source folder and the output folder.
 2. User clicks **Scan**, and the app lists every `.mkv` at the top level of the source folder.
-3. For each file, the app identifies its audio, subtitle and chapter content (`mkvmerge --identify-json`).
+3. For each file, the app identifies its audio, subtitle and chapter content (`mkvmerge -J`, the JSON identify output).
 4. **Existing output:** on scan or re-scan (when the source folder syncs), any file whose `<base name>.mka` already exists in the output folder is flagged so the user can see a copy exists. Existing files are never silently overwritten.
 5. User reviews the queue and can skip items.
 6. User clicks **Split**.
@@ -156,21 +156,24 @@ Shell out to the installed `mkvmerge` (see Architecture for lookup: Homebrew pat
 
 **Workflow 1 (Split) — draft command:**
 ```bash
-mkvmerge -o "<output>/<base>.mka" --title "" --disable-track-statistics-tags \
+mkvmerge -o "<output>/<base>.mka" --title "" --no-date --disable-track-statistics-tags \
   --no-video --no-attachments --no-global-tags --no-track-tags \
+  <per-track options for every audio and subtitle track ID> \
   "<source>/<base>.mkv"
 ```
-(plus per-track options to clear names, languages and default/forced flags, built from `--identify-json`). Based on Arezhik's `extract_main_audio_sub.sh`, but keeping all tracks instead of first audio + first subtitle.
+Per-track options, built from `mkvmerge -J` (only for track IDs the file has; an unknown ID is a warning, exit 1): `--track-name TID:` `--language TID:und` and `--default-track-flag`, `--forced-display-flag`, `--commentary-flag`, `--original-flag`, `--hearing-impaired-flag`, `--visual-impaired-flag`, `--text-descriptions-flag` each set to `TID:0`. Without them mkvmerge copies the source's names, languages and flags. Matroska reads a missing language as `eng` and a missing default flag as on, so "unset" is written as `und` and every flag 0 (decided 2026-11-18, Phase 2 research). Verified with mkvmerge 82.0 and 103.0. Based on Arezhik's `extract_main_audio_sub.sh`, but keeping all tracks instead of first audio + first subtitle.
 
 **Workflow 2 (Remux) — draft command:** video only from the `.mkv`, everything from the `.mka`, no tags or attachments in the final file:
 ```bash
-mkvmerge -o "<output>/<base>.mkv" --title "" --disable-track-statistics-tags \
-  --no-audio --no-subtitles --no-chapters --no-attachments --no-global-tags --no-track-tags "<video>/<base>.mkv" \
+mkvmerge -o "<output>/<base>.mkv" --title "" --no-date --disable-track-statistics-tags \
+  --no-audio --no-subtitles --no-chapters --no-attachments --no-global-tags --no-track-tags \
+  <the same per-track options for each video track ID> "<video>/<base>.mkv" \
   --no-video --no-attachments --no-global-tags --no-track-tags "<mka>/<base>.mka"
 ```
+The video track's name, language and flags are cleared the same way as Split's tracks (decided 2026-11-18). The `.mka` tracks are already clean from Split, so they get no per-track options. All paths are absolute: mkvmerge has no `--`, and an argument starting with `@` is read as an option file.
 Corrects Arezhik's `test-remux.sh`, where `--chapters "$mka"` consumed the `.mka` as a chapters file so its audio and subtitles were never added, and hard-coded track IDs pointed at nothing. Resulting order: video, then the `.mka`'s audio and subtitles (in Split's order), then chapters.
 
-**Scan / sync probes:** every scan runs `mkvmerge --identify-json` on each file to detect tracks, flag extra tracks in Remux video files, and flag existing output (`.mka` in Split, `.mkv` in Remux).
+**Scan / sync probes:** every scan runs `mkvmerge -J` (alias for `--identification-format json --identify`; there is no `--identify-json` option) on each file to detect tracks, flag extra tracks in Remux video files, and flag existing output (`.mka` in Split, `.mkv` in Remux).
 
 **Exit codes:** 0 = Done; 1 = finished with warnings, row gets a warning icon and short message (requirements may be refined later); 2 = Failed.
 
@@ -185,10 +188,11 @@ Run on every scan / sync; issues are flagged and the user is informed.
 
 - **Matching:** exact base name only in v1. Fuzzy / close matching is a later feature (mainly for Remux).
 - **Hidden files:** ignore hidden files and macOS `._` AppleDouble files (common on external drives).
-- **Bad files:** flag zero-length files and files `mkvmerge --identify-json` cannot read.
+- **Bad files:** flag zero-length files and files `mkvmerge -J` cannot read. `-J` exits 0 even for unreadable files, so the app reads its JSON: not recognized, an `errors` entry, a container that isn't Matroska, or no tracks at all.
 - **Remux pairing:** the video and MKA folders should mirror each other; flag any `.mkv` without a matching `.mka` and any `.mka` without a matching `.mkv`.
 - **Split sources:** flag a source that can't be split, or that has no audio track or no subtitle track (missing either one). Chapters are optional.
 - **Existing output:** flag (see Workflows 1 and 2).
+- **Also flagged (decided 2026-11-18, Phase 2 research):** a Remux video file with no video track; a `.mka` with no audio and no subtitle tracks; a file that isn't Matroska inside; a Remux Output folder that is the Video folder.
 - **Still changing:** flag files modified within the last minute at scan time (normally all files are in place before running).
 - **Flagged items** are unchecked and cannot be processed in v1; overrides are later features.
 
@@ -220,7 +224,7 @@ Run on every scan / sync; issues are flagged and the user is informed.
 One phase per PR. Core logic first (testable on Linux before any UI). Design Bot's contract before UI work.
 
 1. **Setup** — repo from the macOS Swift app boilerplate script: hybrid layout, CI with universal macOS build, `.cursor/environment.json`, `docs/LESSONS.md`.
-2. **Scanning and checks** — scanner, `--identify-json` parsing, all Validation rules, Split/Remux command builders; unit tests, no real files.
+2. **Scanning and checks** — scanner, `mkvmerge -J` parsing, all Validation rules, Split/Remux command builders; unit tests, no real files.
 3. **Running** — `mkvmerge` execution, exit codes (0/1 warning/2), temp-file rename, cancel-after-current, per-file errors and summary; tested before UI.
 4. **Design** — Design Bot layout contract for Split/Remux modes, queue, bottom bar, Settings. No code.
 5. **App UI** — folder pickers with persistence, sync/scan, queue, progress + finish summary, Dock badge, notification + Dock bounce options, Settings with MKVToolNix location.

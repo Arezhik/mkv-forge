@@ -6,6 +6,12 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-18 (build 2)
+### Added
+- Scanning and checks for Split and Remux in the core package (#2): top-level folder scan, exact base-name pairing, every validation rule from docs/scaffold.md, `mkvmerge -J` parsing, and the Split and Remux command builders. Nothing in the app window changes until the App UI phase (#5).
+### Changed
+- `scripts/bump-version.sh`, README.md and AGENTS.md: `major` means a major enhancement or breaking change, not a new phase.
+
 ## [0.1.0] - 2026-11-18 (build 1)
 ### Added
 - Project created with macos-swift-app-boilerplate.sh (#1): hybrid layout, CI with the universal macOS build, one placeholder window that shows whether mkvmerge was found, Settings, and Help > Export Debug Log. No drag and drop or Open… (folders come from Choose… buttons in a later phase).

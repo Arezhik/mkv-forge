@@ -119,6 +119,36 @@ public enum ExternalTool {
         return found.isEmpty ? nil : ExternalToolPaths(paths: found)
     }
 
+    /// The copy the user chose in Settings, when there is one. `chosen` may be the
+    /// executable itself, an app bundle such as `MKVToolNix-103.app`, or the folder that
+    /// holds the executables. A chosen copy that can't be found is not found: there's no
+    /// silent fallback to the default search (AGENTS.md, L15). With no choice, this is
+    /// the default search.
+    public static func locate(_ spec: ExternalToolSpec = .primary, chosen: String?) -> ExternalToolPaths? {
+        guard let chosen, !chosen.isEmpty else { return locate(spec) }
+        return locate(spec, chosen: chosen, executableExists: { FileManager.default.isExecutableFile(atPath: $0) })
+    }
+
+    public static func locate(_ spec: ExternalToolSpec, chosen: String, executableExists: (String) -> Bool) -> ExternalToolPaths? {
+        let trimmed = chosen.hasSuffix("/") && chosen.count > 1 ? String(chosen.dropLast()) : chosen
+        let folder: String
+        if spec.executables.contains((trimmed as NSString).lastPathComponent) {
+            // The executable itself; the others live next to it.
+            folder = (trimmed as NSString).deletingLastPathComponent
+        } else if trimmed.hasSuffix(".app") {
+            folder = trimmed + "/Contents/MacOS"
+        } else {
+            folder = trimmed
+        }
+        var found: [String: String] = [:]
+        for executable in spec.executables {
+            let path = (folder as NSString).appendingPathComponent(executable)
+            guard executableExists(path) else { return nil }
+            found[executable] = path
+        }
+        return found.isEmpty ? nil : ExternalToolPaths(paths: found)
+    }
+
     /// The first line the tool prints for its version arguments.
     public static func version(of executable: String, arguments: [String] = ExternalToolSpec.primary.versionArguments) -> String? {
         let process = Process()
