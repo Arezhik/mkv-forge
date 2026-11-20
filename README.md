@@ -40,6 +40,7 @@ The version is MAJOR.MINOR.PATCH (shown in About MKVForge), plus a build number 
 swift test      # the core package, on macOS or Linux
 swift build
 ```
+- On a Mac whose clone is in an iCloud Drive folder (such as `~/Documents` or `~/Desktop`), run `swift test --scratch-path /tmp/mkv-forge-build`, or keep the clone in a folder iCloud doesn't sync, such as `~/Developer`. Otherwise codesign rejects the test bundle (docs/LESSONS.md L30).
 - `SPEC.md` has the scope and the definition of done for the current phase.
 - `AGENTS.md` has the rules for coding agents. Read it before the first change.
 - `scripts/bump-version.sh --check` confirms the version agrees everywhere (CI runs it).

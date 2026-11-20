@@ -1,9 +1,8 @@
-# Backup recipe for XcodeGen (docs/LESSONS.md L19). The checked-in
-# MKVForge.xcodeproj is the source of truth; this file only matters if you ever
-# regenerate it: `brew install xcodegen`, then `cd App && xcodegen generate`.
-# If you add or rename an app .swift file, update BOTH this file and the .xcodeproj
-# (or regenerate). The Xcode project must not sit next to Package.swift, and the
-# package must not be named MKVForge, or Xcode reports the products as missing.
+# Source of truth for App/MKVForge.xcodeproj (docs/LESSONS.md L19). Never hand-edit
+# project.pbxproj: change this file, then `brew install xcodegen; cd App && xcodegen generate`,
+# and commit both. Only scripts/bump-version.sh edits the version lines in both.
+# The Xcode project must not sit next to Package.swift, and the package must not be
+# named MKVForge, or Xcode reports the products as missing.
 name: MKVForge
 options:
   bundleIdPrefix: com.arezhik

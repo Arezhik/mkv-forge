@@ -139,9 +139,9 @@ Functional requirements only; Design Bot sets the layout and visual contract bef
 
 - **Two modes, Split and Remux**, each with its own folder pickers (Choose buttons), sync/scan button, queue and action button (**Split** / **Remux**).
 - **No drag and drop** (unlike PGS2SRT and MP4SubRip); the sync button loads the queue from the chosen folders.
-- **Queue columns (v1):** checkbox, base name, status (Ready / Issue / Done / Failed), issue or error reason.
+- **Queue columns (v1):** checkbox, base name, status, issue or error reason. Statuses (contract v2 §4): Ready, Issue, Waiting, Splitting…/Remuxing… (the current file), Done, Done · warning (mkvmerge exit 1), Failed.
 - **Cancel:** finishes the file currently processing, then stops; nothing after it runs.
-- **Progress and completion (copied from MP4SubRip):** per-row status and reason; bottom bar shows overall progress (e.g. `3 of 7 complete` with a progress bar) and a Dock badge with the number remaining; when finished it shows `Finished · N done · N flagged · N failed` with **Show in Finder**. Raw `mkvmerge` output for a failed file goes in its error text.
+- **Progress and completion (copied from MP4SubRip; contract v2 §7):** per-row status and reason; bottom bar shows overall progress (e.g. `3 of 7 complete` with a files-based progress bar); when finished it shows `Finished · N done (M with warning) · N flagged · N failed`, zero counts hidden, with **Show in Finder**. The Dock badge was removed in contract v2 (Arezhik, 2026-11-18). Raw `mkvmerge` output for a failed file goes in its error text.
 - **Notifications (Settings options):** macOS notification when a batch finishes, and Dock icon bounce.
 
 ### Later features (confirmed)
@@ -227,8 +227,8 @@ One phase per PR. Core logic first (testable on Linux before any UI). Design Bot
 1. **Setup** — repo from the macOS Swift app boilerplate script: hybrid layout, CI with universal macOS build, `.cursor/environment.json`, `docs/LESSONS.md`.
 2. **Scanning and checks** — scanner, `mkvmerge -J` parsing, all Validation rules, Split/Remux command builders; unit tests, no real files.
 3. **Running** — `mkvmerge` execution, exit codes (0/1 warning/2), temp-file rename, cancel-after-current, per-file errors and summary; tested before UI.
-4. **Design** — Design Bot layout contract for Split/Remux modes, queue, bottom bar, Settings. No code.
-5. **App UI** — folder pickers with persistence, sync/scan, queue, progress + finish summary, Dock badge, notification + Dock bounce options, Settings with MKVToolNix location.
+4. **Design** — done: Design Bot layout contract v2 (`docs/design/v1-layout-contract_v2.md`, approved 2026-11-18) plus the v2.1 addendum (`docs/design/v1-layout-contract_v2.1-addendum.md`, approved 2026-11-19) for Split/Remux modes, queue, bottom bar, Settings, quit while running, and scanning. No code.
+5. **App UI** — folder pickers with persistence, sync/scan, queue, progress + finish summary, notification + Dock bounce options, Settings with MKVToolNix location.
 6. **Mac test** — Arezhik tests on real files; release v1.0.0.
 
 Tracked as a GitHub epic with one issue per phase, plus one issue per later feature (see Out of Scope).
