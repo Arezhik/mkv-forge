@@ -32,6 +32,7 @@ Arezhik approves the merge only after this sheet passes.
 - [ ] The scheme passes no leftover diagnostic environment variables (Product → Scheme → Edit Scheme → Run → Arguments), and the debug log header lists any toggles that are on (L21).
 - [ ] Help → Export Debug Log saves to the Desktop, and the new feature's events are in it.
 - [ ] With `mkvmerge` missing, a clear message appears and nothing crashes. With it installed, the debug log shows its path and version.
+- [ ] Scan in Split, switch to Remux and back (picker and ⌘1/⌘2); scan in both modes and switch again; after a scan, Choose… a different folder; re-scan after deleting a file; right-click a row; repeat after a finished batch (Show in Finder on a Done row). Nothing crashes, and the row selection clears on every mode switch (L31).
 
 ## Notes
 ________________________________________________________________

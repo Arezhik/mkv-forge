@@ -12,30 +12,33 @@ import MKVForgeCore
 // (docs/LESSONS.md L19): Linux agents can't add files to the Xcode project.
 
 struct ContentView: View {
+    // The only reader of the environment in the main window. Every subview gets `model`
+    // from its parent: on macOS, Table cells, context menus and toolbar items are hosted in
+    // separate AppKit views that don't reliably inherit it (docs/LESSONS.md L31).
     @EnvironmentObject private var model: AppModel
-    @State private var selection: Set<String> = []
+    @State private var selected = TableSelection()
 
     var body: some View {
         VStack(spacing: 0) {
             if model.toolStatus.showsBanner {
-                ToolBanner()
+                ToolBanner(model: model)
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
             }
-            FolderPanel()
+            FolderPanel(model: model)
             Divider()
-            QueueTable(selection: $selection)
+            QueueTable(model: model, selection: selection)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            BottomBar()
+            BottomBar(model: model)
         }
         .frame(minWidth: 760, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                ModePicker()
+                ModePicker(model: model)
             }
             ToolbarItem(placement: .primaryAction) {
-                PrimaryButton()
+                PrimaryButton(model: model)
             }
         }
         .navigationTitle("MKVForge")
@@ -48,16 +51,32 @@ struct ContentView: View {
             // The banner is announced once when it appears (v2 §11).
             if shows { model.announce(StatusLines.toolMissingBanner) }
         }
-        .onChange(of: model.activeMode) { _, _ in
-            selection = []
-        }
     }
+
+    /// The table selection, cleared by a mode switch in the same update that switches
+    /// (Split and Remux rows never share a selection). It belongs to one visit of a mode:
+    /// it reads as empty once `modeSwitchCount` moves on, so nothing writes state during
+    /// the switch (L10).
+    private var selection: Binding<Set<String>> {
+        let visit = model.modeSwitchCount
+        let stored = $selected
+        return Binding(
+            get: { stored.wrappedValue.visit == visit ? stored.wrappedValue.ids : [] },
+            set: { ids in stored.wrappedValue = TableSelection(visit: visit, ids: ids) }
+        )
+    }
+}
+
+/// Selected row ids and the mode visit they were selected in.
+private struct TableSelection {
+    var visit = 0
+    var ids: Set<String> = []
 }
 
 // MARK: Toolbar (v2 §2, §6)
 
 private struct ModePicker: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
 
     var body: some View {
         Picker("Mode", selection: modeBinding) {
@@ -81,7 +100,7 @@ private struct ModePicker: View {
 }
 
 private struct PrimaryButton: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
 
     var body: some View {
         let enablement = model.enablement
@@ -125,7 +144,7 @@ private struct PrimaryButton: View {
 // MARK: Banner (v2 §9)
 
 private struct ToolBanner: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
 
     private static let downloadPage = URL(string: StatusLines.downloadURL) ?? URL(fileURLWithPath: "/")
 
@@ -172,7 +191,7 @@ private struct ToolBanner: View {
 // MARK: Folder panel and Scan row (v2 §3, v2.1 §2.2)
 
 private struct FolderPanel: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
 
     var body: some View {
         let state = model.current
@@ -191,7 +210,7 @@ private struct FolderPanel: View {
                         .frame(width: 92, alignment: .trailing)
                         .accessibilityHidden(true)
 
-                        FolderField(role: role, path: state.folder(role), menuEnabled: enablement.folderMenus)
+                        FolderField(model: model, role: role, path: state.folder(role), menuEnabled: enablement.folderMenus)
 
                         Button("Choose…") {
                             model.chooseFolder(role)
@@ -201,14 +220,14 @@ private struct FolderPanel: View {
                     }
                 }
             }
-            ScanRow()
+            ScanRow(model: model)
         }
         .padding(16)
     }
 }
 
 private struct FolderField: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
     let role: FolderRole
     let path: String?
     let menuEnabled: Bool
@@ -251,7 +270,7 @@ private struct FolderField: View {
 }
 
 private struct ScanRow: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
 
     var body: some View {
         let scanning = model.workflow.activity.isScanning
@@ -294,7 +313,7 @@ private struct ScanRow: View {
 // MARK: Queue table (v2 §4, v2.1 §2.4)
 
 private struct QueueTable: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
     @Binding var selection: Set<String>
 
     var body: some View {
@@ -305,7 +324,7 @@ private struct QueueTable: View {
         let rescanning = model.workflow.activity.isScanning && !state.rows.isEmpty
         Table(state.rows, selection: $selection) {
             TableColumn("") { (row: QueueRow) in
-                CheckboxCell(row: row, display: RowDisplay(row, mode: mode, locked: locked))
+                CheckboxCell(model: model, row: row, display: RowDisplay(row, mode: mode, locked: locked))
             }
             .width(28)
             TableColumn("Name") { (row: QueueRow) in
@@ -323,7 +342,7 @@ private struct QueueTable: View {
         }
         .alternatingRowBackgrounds()
         .contextMenu(forSelectionType: String.self) { ids in
-            RowMenu(ids: ids)
+            RowMenu(model: model, ids: ids)
         }
         .onKeyPress(.space) {
             // Space toggles the selected rows' checkboxes (v2 §11).
@@ -345,7 +364,9 @@ private struct QueueTable: View {
 }
 
 private struct CheckboxCell: View {
-    @EnvironmentObject private var model: AppModel
+    // A plain `let`: row cells only write, and each one observing the model would redraw
+    // every row on every change. `row` and `display` are values the Table re-evaluates.
+    let model: AppModel
     let row: QueueRow
     let display: RowDisplay
 
@@ -437,7 +458,8 @@ private func statusColor(_ tint: StatusTint) -> Color {
 /// Row context menu: Show in Finder for a Done row, Select All Ready / Deselect All.
 /// Flagged rows keep this menu for the overrides feature (#14).
 private struct RowMenu: View {
-    @EnvironmentObject private var model: AppModel
+    // A plain `let`: the menu is built when it opens.
+    let model: AppModel
     let ids: Set<String>
 
     var body: some View {
@@ -502,7 +524,7 @@ private struct EmptyStateView: View {
 // MARK: Bottom bar (v2 §7)
 
 private struct BottomBar: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var model: AppModel
 
     var body: some View {
         let workflow = model.workflow

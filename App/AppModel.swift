@@ -28,6 +28,9 @@ final class CommandState: ObservableObject {
 final class AppModel: ObservableObject {
     @Published private(set) var toolStatus: ToolStatus = .checking { didSet { refreshCommands() } }
     @Published private(set) var activeMode: ScanMode = .split { didSet { refreshCommands() } }
+    /// Counts mode switches. Not published: it only changes together with `activeMode`. The
+    /// window uses it to clear the table selection in the same update as the switch.
+    private(set) var modeSwitchCount = 0
     @Published private(set) var split = ModeState(mode: .split) { didSet { refreshCommands() } }
     @Published private(set) var remux = ModeState(mode: .remux) { didSet { refreshCommands() } }
     @Published private(set) var workflow = Workflow() { didSet { refreshCommands() } }
@@ -98,6 +101,7 @@ final class AppModel: ObservableObject {
 
     func selectMode(_ mode: ScanMode) {
         guard mode != activeMode, enablement.modeSwitch else { return }
+        modeSwitchCount += 1
         activeMode = mode
         settings.activeMode = mode
         settings.save(to: .standard)
