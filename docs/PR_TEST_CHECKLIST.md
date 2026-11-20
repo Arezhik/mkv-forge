@@ -9,6 +9,7 @@ Arezhik approves the merge only after this sheet passes.
 
 ## Setup
 - [ ] Pull the branch. Quit Xcode, delete DerivedData for MKVForge, open `App/MKVForge.xcodeproj`, then Run (⌘R).
+- [ ] Core tests in Terminal from the repo root: `swift test --scratch-path /tmp/mkv-forge-build 2>&1 | tail -3` → 0 failures. The scratch path keeps the build out of iCloud-synced folders (L30).
 - [ ] CI is green: Linux tests, macOS tests, and the universal app. The `MKVForge-universal.zip` artifact is attached.
 - [ ] About MKVForge (app menu) and the debug log header show the new version and build. CHANGELOG.md has the entry.
 
@@ -19,7 +20,7 @@ Arezhik approves the merge only after this sheet passes.
 ## Regression checks (every PR)
 - [ ] Dropping a file on the window or the Dock icon does nothing, and there is no Open… item. Folders come only from Choose… buttons (docs/scaffold.md).
 - [ ] Every toolbar button and menu item does something, including Settings (⌘, and the toolbar button) (L4).
-- [ ] Cancel and Cancel All stop right away, at every stage, and leave no partial output (L5).
+- [ ] Cancel finishes the current file, then stops; nothing after it runs. Quitting mid-file with Quit stops right away and leaves no temp or partial file (L5, contract v2 §6, v2.1 addendum §1).
 - [ ] No source file on disk is ever deleted or overwritten (L6).
 - [ ] Reveal in Finder works, and gives a clear message when the file is gone (L7).
 - [ ] Minimize, restore, full screen, and close each window. It still responds afterwards (L8).
