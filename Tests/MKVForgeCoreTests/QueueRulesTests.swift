@@ -4,22 +4,24 @@ import XCTest
 final class QueueRulesTests: XCTestCase {
     func testOnlyFinishedRowsAreRemovable() {
         XCTAssertFalse(JobStatus.waiting.isRemovable)
-        XCTAssertFalse(JobStatus.working(completed: 1, total: 3).isRemovable)
+        XCTAssertFalse(JobStatus.working.isRemovable)
         XCTAssertTrue(JobStatus.done(outputPath: "/a").isRemovable)
-        XCTAssertTrue(JobStatus.failed(reason: "x").isRemovable)
+        XCTAssertTrue(JobStatus.doneWithWarning(outputPath: "/a", warnings: []).isRemovable)
+        XCTAssertTrue(JobStatus.failed(reason: "x", detail: "").isRemovable)
+        XCTAssertTrue(JobStatus.notRun.isRemovable)
         XCTAssertTrue(JobStatus.skipped(reason: "x").isRemovable)
         XCTAssertTrue(JobStatus.canceled.isRemovable)
     }
 
     func testCommandFlagsFollowTheRows() {
         XCTAssertEqual(CommandFlags.from([]), CommandFlags(hasActiveWork: false, canClearFinished: false))
-        let items = [QueueItem(path: "/a", status: .working(completed: 0, total: 0)), QueueItem(path: "/b", status: .canceled)]
+        let items = [QueueItem(path: "/a", status: .working), QueueItem(path: "/b", status: .canceled)]
         XCTAssertEqual(CommandFlags.from(items), CommandFlags(hasActiveWork: true, canClearFinished: true))
     }
 
     func testProgressTickIsWorkingToWorkingOnly() {
-        let working = JobStatus.working(completed: 1, total: 10)
-        XCTAssertTrue(working.isProgressTick(to: .working(completed: 2, total: 10)))
+        let working = JobStatus.working
+        XCTAssertTrue(working.isProgressTick(to: .working))
         XCTAssertFalse(working.isProgressTick(to: .done(outputPath: "/a")))
         XCTAssertFalse(JobStatus.waiting.isProgressTick(to: working))
     }

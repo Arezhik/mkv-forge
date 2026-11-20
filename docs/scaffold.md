@@ -178,6 +178,7 @@ Corrects Arezhik's `test-remux.sh`, where `--chapters "$mka"` consumed the `.mka
 **Exit codes:** 0 = Done; 1 = finished with warnings, row gets a warning icon and short message (requirements may be refined later); 2 = Failed.
 
 **Partial files:** write to a temporary name and rename only on success, so a failed or canceled run leaves no half-written file.
+Running (Phase 3, decided 2026-11-19): the temp file is hidden, `.<base>.partial.mka` / `.mkv` in the Output folder, and is renamed with a move that never replaces a file. A failed, cancelled or killed run deletes it. Right before each file the app checks that the Output folder and inputs still exist, the output is still absent, and a fresh `mkvmerge -J` matches the scan; otherwise that file fails without running. mkvmerge reports warnings and errors on stdout (L28) and silently recreates a missing output folder (L29).
 
 ### Later features (confirmed)
 - **Dry run:** show the commands without running them (may prove unnecessary given the scan probes).

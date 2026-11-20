@@ -24,6 +24,15 @@ Times in Mountain time (MT).
 - Real-mkvmerge test: a small file generated at test time; runs on Linux CI (mkvtoolnix 82.0), skips on macOS CI. Also passed on the box with 103.0.
 - `bump-version.sh`, README.md and AGENTS.md: `major` no longer says "or a new phase".
 
+## 2026-11-19 ~9:00 AM MT: Phase 3 (Running, #3)
+- Research findings Arezhik approved (Q1–Q11, plus the pbxproj rule): mkvmerge prints warnings and errors on stdout (L28) and recreates a missing output folder with exit 0 (L29); a killed run leaves a file that reads as Matroska, so output goes to a hidden temp `.<base>.partial.<ext>` renamed with `FileManager.moveItem`, which never replaces a file.
+- Each file is re-checked right before it runs (Output folder, inputs, output absent, fresh `mkvmerge -J` equals the scan). Exit 0 = Done, 1 = Done · warning, 2 or anything else = Failed; the batch keeps going. Cancel finishes the current file; a hard stop kills mkvmerge and deletes the temp.
+- `JobStatus` reshaped to the layout contract's statuses; summary and status text live in the core.
+- No mkvtoolnix on the macOS CI test job (Q8 = no); real runs are tested on Linux CI and in the Mac `swift test` step. No window changes until #5.
+- AGENTS.md, README.md and LESSONS L19: never hand-edit project.pbxproj; App/project.yml plus `xcodegen generate` is the source of truth (bump-version.sh's version lines are the only exception; Linux agents stop and say so in the PR). Existing output is never overwritten (no Apply-to-all prompt).
+- Pending follow-up PR: App/project.yml's header comment still calls it a "backup recipe".
+- 0.3.0 (build 3).
+
 <!-- Template for each entry:
 ## YYYY-MM-DD ~H:MM PM MT: PR #N (what it does)
 - Agent: bc-…, branch cursor/…
