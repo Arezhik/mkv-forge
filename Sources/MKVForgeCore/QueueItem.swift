@@ -1,10 +1,10 @@
 import Foundation
 
-// Queue rules (docs/LESSONS.md L6):
-// - Clear Finished removes done, failed, skipped, and canceled rows. It is enabled
-//   or dimmed, never hidden, and it never asks for confirmation.
-// - The hover ✕ appears only on those same rows. Waiting and working rows use Cancel.
-// - Removing a row never deletes the output file on disk.
+// Run statuses (docs/design/v1-layout-contract_v2.md §4, §6; docs/LESSONS.md L6):
+// - The queue is the last scan's rows. A rescan replaces it; MKVForge has no Clear
+//   Finished, no row ✕ and no Cancel All. Nothing in the queue ever deletes a file.
+// - Cancel finishes the current file, then stops; rows it kept from starting are notRun
+//   and show Ready again. A hard stop (quitting with Quit) marks the current row canceled.
 // - An empty queue shows the empty state (MKVForge has no drop screen).
 
 /// Where one queued file is. The texts follow docs/design/v1-layout-contract_v2.md §4.
@@ -20,23 +20,19 @@ public enum JobStatus: Equatable, Sendable {
     case failed(reason: String, detail: String)
     /// Cancel stopped the batch before this row started. The row shows Ready again.
     case notRun
-    case skipped(reason: String)
     /// A hard stop (app quit) killed mkvmerge on this row. Its temp file is deleted.
     case canceled
 
     /// Reason shown on Waiting rows while Cancel waits for the current file.
     public static let wontStartReason = "Won't start: batch cancelled"
 
-    /// Waiting or working. Cancel and Cancel All apply.
+    /// Waiting or working: the row is part of the batch that's still running.
     public var isActive: Bool {
         switch self {
         case .waiting, .working: return true
-        case .done, .doneWithWarning, .failed, .notRun, .skipped, .canceled: return false
+        case .done, .doneWithWarning, .failed, .notRun, .canceled: return false
         }
     }
-
-    /// Clear Finished and the row ✕ apply.
-    public var isRemovable: Bool { !isActive }
 
     /// True when `next` only repeats the working state. Those updates are throttled;
     /// every other change (start, done, failed) is published right away.
@@ -53,7 +49,6 @@ public enum JobStatus: Equatable, Sendable {
         case .doneWithWarning: return "Done · warning"
         case .failed: return "Failed"
         case .notRun: return "Ready"
-        case .skipped: return "Skipped"
         case .canceled: return "Cancelled"
         }
     }
@@ -63,7 +58,6 @@ public enum JobStatus: Equatable, Sendable {
         switch self {
         case let .doneWithWarning(_, warnings): return MKVMergeOutput.warningReason(warnings)
         case let .failed(reason, _): return reason
-        case let .skipped(reason): return reason
         case .waiting, .working, .done, .notRun, .canceled: return nil
         }
     }
@@ -73,7 +67,6 @@ public enum JobStatus: Equatable, Sendable {
         switch self {
         case let .doneWithWarning(_, warnings): return MKVMergeOutput.warningHelp(warnings)
         case let .failed(reason, detail): return detail.isEmpty ? reason : detail
-        case let .skipped(reason): return reason
         case .waiting, .working, .done, .notRun, .canceled: return nil
         }
     }
@@ -87,7 +80,7 @@ public enum JobStatus: Equatable, Sendable {
     }
 }
 
-/// One row in the queue.
+/// A file and its run status. The window's rows are `QueueRow` (ModeState.swift).
 public struct QueueItem: Identifiable, Equatable, Sendable {
     public let id: UUID
     public var path: String
@@ -100,23 +93,4 @@ public struct QueueItem: Identifiable, Equatable, Sendable {
     }
 
     public var fileName: String { (path as NSString).lastPathComponent }
-}
-
-/// The few values menu commands depend on. The app publishes these only when one
-/// of them changes, so open menus do not rebuild on every progress tick (L9).
-public struct CommandFlags: Equatable, Sendable {
-    public var hasActiveWork: Bool
-    public var canClearFinished: Bool
-
-    public init(hasActiveWork: Bool = false, canClearFinished: Bool = false) {
-        self.hasActiveWork = hasActiveWork
-        self.canClearFinished = canClearFinished
-    }
-
-    public static func from(_ items: [QueueItem]) -> CommandFlags {
-        CommandFlags(
-            hasActiveWork: items.contains { $0.status.isActive },
-            canClearFinished: items.contains { $0.status.isRemovable }
-        )
-    }
 }

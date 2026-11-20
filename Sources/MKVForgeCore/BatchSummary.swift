@@ -50,7 +50,7 @@ public struct BatchSummary: Equatable, Sendable {
             notRun += 1
         case .canceled:
             canceled += 1
-        case .waiting, .working, .skipped:
+        case .waiting, .working:
             break
         }
     }

@@ -36,16 +36,16 @@ enum AppVersion {
 
 /// Machine facts for the exported header. This stays in the app so the core package has no AppKit.
 enum DebugMachine {
-    static func environment(settings: String) -> DebugEnvironment {
+    /// `settings` is `AppSettings.summary` (no paths). `toolStatus` is the mkvmerge the
+    /// app is using, chosen or found, so the header matches what ran (L15).
+    static func environment(settings: String, toolStatus: ToolStatus) -> DebugEnvironment {
         let architecture = processArchitecture
         let rosetta = runningUnderRosetta
         var facts: [DebugFact] = []
-        let spec = ExternalToolSpec.primary
-        let tools = ExternalTool.locate(spec)
-        let first = spec.executables.first ?? spec.name
-        let path = tools?[first]
-        facts.append(DebugFact(spec.name, path ?? "not found"))
-        facts.append(DebugFact("\(spec.name) version", path.flatMap { ExternalTool.version(of: $0, arguments: spec.versionArguments) } ?? "not found"))
+        let name = ExternalToolSpec.primary.name
+        facts.append(DebugFact(name, toolStatus.settingsPath ?? "not found"))
+        facts.append(DebugFact("\(name) status", toolStatus.settingsStatus))
+        facts.append(DebugFact("\(name) version", toolStatus.version ?? "not found"))
         return DebugEnvironment(
             appVersion: AppVersion.marketing,
             appBuild: AppVersion.build,

@@ -232,7 +232,7 @@ public final class BatchRunner: Sendable {
         case let .doneWithWarning(_, warnings): DebugLog.shared.record(.work, "\(prefix) done with \(warnings.count) warning(s)")
         case let .failed(reason, _): DebugLog.shared.record(.error, "\(prefix) failed: \(Self.cut(reason))", isError: true)
         case .canceled: DebugLog.shared.record(.work, "\(prefix) cancelled (hard stop)")
-        case .notRun, .waiting, .working, .skipped: break
+        case .notRun, .waiting, .working: break
         }
     }
 

@@ -2,21 +2,22 @@ import XCTest
 @testable import MKVForgeCore
 
 final class QueueRulesTests: XCTestCase {
-    func testOnlyFinishedRowsAreRemovable() {
-        XCTAssertFalse(JobStatus.waiting.isRemovable)
-        XCTAssertFalse(JobStatus.working.isRemovable)
-        XCTAssertTrue(JobStatus.done(outputPath: "/a").isRemovable)
-        XCTAssertTrue(JobStatus.doneWithWarning(outputPath: "/a", warnings: []).isRemovable)
-        XCTAssertTrue(JobStatus.failed(reason: "x", detail: "").isRemovable)
-        XCTAssertTrue(JobStatus.notRun.isRemovable)
-        XCTAssertTrue(JobStatus.skipped(reason: "x").isRemovable)
-        XCTAssertTrue(JobStatus.canceled.isRemovable)
+    func testOnlyWaitingAndWorkingAreActive() {
+        XCTAssertTrue(JobStatus.waiting.isActive)
+        XCTAssertTrue(JobStatus.working.isActive)
+        XCTAssertFalse(JobStatus.done(outputPath: "/a").isActive)
+        XCTAssertFalse(JobStatus.doneWithWarning(outputPath: "/a", warnings: []).isActive)
+        XCTAssertFalse(JobStatus.failed(reason: "x", detail: "").isActive)
+        XCTAssertFalse(JobStatus.notRun.isActive)
+        XCTAssertFalse(JobStatus.canceled.isActive)
     }
 
-    func testCommandFlagsFollowTheRows() {
-        XCTAssertEqual(CommandFlags.from([]), CommandFlags(hasActiveWork: false, canClearFinished: false))
-        let items = [QueueItem(path: "/a", status: .working), QueueItem(path: "/b", status: .canceled)]
-        XCTAssertEqual(CommandFlags.from(items), CommandFlags(hasActiveWork: true, canClearFinished: true))
+    func testStatusTextsFollowTheContract() {
+        XCTAssertEqual(JobStatus.waiting.statusText(mode: .split), "Waiting")
+        XCTAssertEqual(JobStatus.working.statusText(mode: .split), "Splitting…")
+        XCTAssertEqual(JobStatus.working.statusText(mode: .remux), "Remuxing…")
+        XCTAssertEqual(JobStatus.notRun.statusText(mode: .split), "Ready")
+        XCTAssertEqual(JobStatus.doneWithWarning(outputPath: "/a", warnings: []).statusText(mode: .remux), "Done · warning")
     }
 
     func testProgressTickIsWorkingToWorkingOnly() {
