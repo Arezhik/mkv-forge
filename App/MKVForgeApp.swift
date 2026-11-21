@@ -4,6 +4,8 @@ import MKVForgeCore
 // One `Window` scene, a Settings scene, and the menus (docs/design/v1-layout-contract_v2.md
 // §1, §8, §11, §12; v2.1 addendum §2.3). MKVForge has no drag and drop, no Open…, and no
 // Dock or Open With intake. Folders come from Choose… buttons.
+/// The SwiftUI app entry point. MKVForge splits `.mkv` files into `.mka` and remuxes
+/// video-only `.mkv` files with a matching `.mka`, in folder batches, using `mkvmerge`.
 @main
 struct MKVForgeApp: App {
     // The app delegate owns the model, so ⌘Q (applicationShouldTerminate) reaches it.
