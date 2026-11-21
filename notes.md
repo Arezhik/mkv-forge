@@ -30,8 +30,15 @@ Times in Mountain time (MT).
 - `JobStatus` reshaped to the layout contract's statuses; summary and status text live in the core.
 - No mkvtoolnix on the macOS CI test job (Q8 = no); real runs are tested on Linux CI and in the Mac `swift test` step. No window changes until #5.
 - AGENTS.md, README.md and LESSONS L19: never hand-edit project.pbxproj; App/project.yml plus `xcodegen generate` is the source of truth (bump-version.sh's version lines are the only exception; Linux agents stop and say so in the PR). Existing output is never overwritten (no Apply-to-all prompt).
-- Pending follow-up PR: App/project.yml's header comment still calls it a "backup recipe".
 - 0.3.0 (build 3).
+
+## 2026-11-19 ~10:30 PM MT: Phase 5 (App UI, #5)
+- Research findings Arezhik approved (Q1–Q10 as recommended): one PR, all app code in the 7 existing App files (no new App files, no pbxproj change); the rules live in new MKVForgeCore files tested on Linux (scan progress, mode state, workflow, row and status text, quit flow, batch-end feedback, settings, mkvmerge status, Show in Finder).
+- Scan progress counts files finished + 1, capped at the total, about 10 updates a second; Esc stops a scan and keeps the old rows. A remembered folder that's gone shows as not chosen and is logged. A chosen mkvmerge that's missing or doesn't run shows "Can't run this mkvmerge", with no fallback (L15).
+- Quitting mid-batch never holds `.terminateLater` across a file: Finish Current File answers "don't quit", cancels, and quits when the batch stops. Closing the window quits.
+- Notifications ask for permission at the first batch start; CI now ad-hoc signs the app before zipping so testers' copies can post them.
+- App icon: Design Bot round 2 approved as-is; it goes in its own Mac-regenerated PR (first `xcodegen generate`) before #6.
+- 0.4.0 (build 4).
 
 <!-- Template for each entry:
 ## YYYY-MM-DD ~H:MM PM MT: PR #N (what it does)

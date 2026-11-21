@@ -140,11 +140,20 @@ final class MKVMergeIntegrationTests: XCTestCase {
         _ = try await run(tool, remuxArguments)
         assertStripped(try await identifyJSON(tool, pair.outputPath), kinds: ["video", "audio", "subtitles"])
 
-        // The full source in the Video folder has extra tracks.
+        // The full source in the Video folder: only its video track is used.
         try FileManager.default.removeItem(atPath: video)
         try FileManager.default.copyItem(atPath: source, toPath: video)
         let extra = try await scanner.scanRemux(video: "\(root)/Video", audio: "\(root)/Audio", output: "\(root)/Video")
-        XCTAssertEqual(extra.item(name)?.issues.first, .outputIsVideoFolder)
-        XCTAssertTrue(extra.item(name)?.issues.contains(.extraTracks(fileName: name + ".mkv", audio: 1, subtitles: 1)) ?? false)
+        XCTAssertEqual(extra.item(name)?.issues, [.outputIsVideoFolder])
+        XCTAssertEqual(extra.item(name)?.notes, [.videoOnly(fileName: name + ".mkv", audio: 1, subtitles: 1)])
+        try FileManager.default.createDirectory(atPath: "\(root)/FromFull", withIntermediateDirectories: true)
+        let full = try await scanner.scanRemux(video: "\(root)/Video", audio: "\(root)/Audio", output: "\(root)/FromFull")
+        let fullPair = try XCTUnwrap(full.item(name))
+        XCTAssertTrue(fullPair.isReady, fullPair.helpText ?? "")
+        XCTAssertEqual(fullPair.reasonText, "Uses video only, ignores 1 audio, 1 subtitle")
+        let fullArguments = try MKVMergeCommand.remux(video: video, mka: try XCTUnwrap(fullPair.mkaPath), output: fullPair.outputPath, videoTracks: fullPair.sourceInfo?.tracks ?? [])
+        _ = try await run(tool, fullArguments)
+        // One video from the .mkv, then the .mka's audio and subtitles: the .mkv's own are dropped.
+        assertStripped(try await identifyJSON(tool, fullPair.outputPath), kinds: ["video", "audio", "subtitles"])
     }
 }

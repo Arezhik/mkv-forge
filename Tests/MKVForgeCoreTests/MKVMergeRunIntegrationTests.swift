@@ -108,6 +108,39 @@ final class MKVMergeRunIntegrationTests: XCTestCase {
         XCTAssertEqual(remuxTracks, ["video", "audio", "subtitles"])
     }
 
+    /// Arezhik's case (L32): Split, then Remux the full sources against the new .mka files
+    /// within a minute. The .mka are MKVForge's own outputs, so they aren't still changing,
+    /// and the full .mkv gives only its video.
+    func testRemuxRightAfterSplitWithTheFullSourcesAsVideo() async throws {
+        let tool = try mkvmerge()
+        let (full, _) = try await makeSources(tool)
+        // The full source has been in place for an hour; only the .mka will be new.
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-3600)], ofItemAtPath: full)
+        let runner = BatchRunner(executable: tool)
+        let scanner = FolderScanner(identifier: MKVMergeIdentifier(executable: tool))
+        let split = try await scanner.scanSplit(source: "\(root)/Rips", output: "\(root)/Audio")
+        let splitSummary = await runner.run(RunJob.jobs(from: split, checked: [Self.name]), flaggedCount: 0)
+        XCTAssertEqual(splitSummary.text, "Finished · 1 done")
+        var fresh = FreshOutputs()
+        fresh.record(paths: splitSummary.outputPaths, at: Date())
+        XCTAssertEqual(fresh.count, 1)
+
+        // Real clock: the .mka is seconds old.
+        let without = try await scanner.scanRemux(video: "\(root)/Rips", audio: "\(root)/Audio", output: "\(root)/Finished")
+        XCTAssertEqual(without.item(Self.name)?.issues, [.stillChanging(.audio, fileName: "\(Self.name).mka")])
+        let remux = try await scanner.scanRemux(video: "\(root)/Rips", audio: "\(root)/Audio", output: "\(root)/Finished", fresh: fresh)
+        let pair = try XCTUnwrap(remux.item(Self.name))
+        XCTAssertTrue(pair.isReady, pair.helpText ?? "")
+        XCTAssertEqual(pair.reasonText, "Uses video only, ignores 1 audio, 1 subtitle")
+
+        let log = EventLog()
+        let summary = await runner.run(RunJob.jobs(from: remux, checked: [Self.name]), flaggedCount: 0) { log.append($0) }
+        XCTAssertEqual(log.statuses[Self.name], .done(outputPath: "\(root)/Finished/\(Self.name).mkv"))
+        XCTAssertEqual(summary.savedText, "1 .mkv saved")
+        let tracks = try await trackTypes(tool, "\(root)/Finished/\(Self.name).mkv")
+        XCTAssertEqual(tracks, ["video", "audio", "subtitles"])
+    }
+
     func testExit1FromAStaleTrackIDIsDoneWithAWarning() async throws {
         let tool = try mkvmerge()
         let (full, _) = try await makeSources(tool)

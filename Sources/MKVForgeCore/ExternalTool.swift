@@ -77,6 +77,28 @@ public enum ToolFailure: Error, Equatable, LocalizedError {
 }
 
 public enum ExternalTool {
+    /// The fixed folders searched first, in order (Apple silicon Homebrew, then Intel Homebrew).
+    public static let fixedFolders = ["/opt/homebrew/bin", "/usr/local/bin"]
+
+    /// The search order as people read it in Settings (layout contract v2 §8; replaces the
+    /// illustrative list of assumption A8). Same order `locate` uses.
+    public static func searchLocations(_ spec: ExternalToolSpec = .primary) -> [String] {
+        var places = fixedFolders
+        if let prefix = spec.appBundlePrefix, !prefix.isEmpty {
+            places.append("/Applications/\(prefix)*.app/Contents/MacOS")
+        }
+        places.append("PATH")
+        return places
+    }
+
+    /// `Looked in /opt/homebrew/bin, /usr/local/bin, /Applications/MKVToolNix*.app/Contents/MacOS and PATH.`
+    public static func searchDescription(_ spec: ExternalToolSpec = .primary) -> String {
+        let places = searchLocations(spec)
+        guard let last = places.last else { return "" }
+        let head = places.dropLast().joined(separator: ", ")
+        return head.isEmpty ? "Looked in \(last)." : "Looked in \(head) and \(last)."
+    }
+
     public static func locate(_ spec: ExternalToolSpec = .primary) -> ExternalToolPaths? {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: "/Applications")) ?? []
         return locate(
@@ -101,8 +123,9 @@ public enum ExternalTool {
             bundles = []
         }
         func find(_ name: String) -> String? {
-            for path in ["/opt/homebrew/bin/\(name)", "/usr/local/bin/\(name)"] where executableExists(path) {
-                return path
+            for folder in fixedFolders {
+                let path = "\(folder)/\(name)"
+                if executableExists(path) { return path }
             }
             for bundle in bundles {
                 let path = "/Applications/\(bundle)/Contents/MacOS/\(name)"

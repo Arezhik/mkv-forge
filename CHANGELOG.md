@@ -6,6 +6,19 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-20 (build 4)
+### Added
+- The app window (#5): a Split | Remux mode switch, remembered folder pickers, Scan with a `Scanning… N of M` count (Esc stops it and keeps the previous rows), the queue table with checkboxes and each file's status and reason, Split/Remux and Cancel in the toolbar, the bottom bar summary and progress, Show in Finder, and the MKVToolNix-not-found banner. Keys: ⌘↩, ⌘R, ⌘., Esc, ⌘1, ⌘2 and Space.
+- Quitting or closing the window during a batch asks first (#5): Finish Current File, Quit, or Cancel. Closing the window quits MKVForge.
+- Settings (#5): choose a specific mkvmerge or go back to the automatic search, and turn the batch-finished notification and Dock bounce on or off (both on by default, only when MKVForge is in the background).
+### Changed
+- Remux accepts full MKVs in the Video folder (#5): a video file with audio or subtitle tracks is Ready with `Uses video only, ignores …` instead of an Issue, and only its video track is used.
+- A chosen mkvmerge that's missing or doesn't run shows "Can't run this mkvmerge" in the window and Settings, with no fallback to the automatic search (L15). Settings lists the real search order.
+- CI ad-hoc signs the app before zipping it, so testers' copies can post notifications.
+- A Remux scan right after a Split no longer flags the new `.mka` files as still changing (#5, L32). Files copied in by hand keep the one-minute rule.
+### Removed
+- The unused `skipped` status and `CommandFlags.canClearFinished` in the core package.
+
 ## [0.3.0] - 2026-11-19 (build 3)
 ### Added
 - Running Split and Remux in the core package (#3): one file at a time with the installed mkvmerge, exit 0 = Done, 1 = Done · warning, 2 = Failed, and the batch keeps going after a failure. Output goes to a hidden temp file that is renamed only on success and never replaces an existing file. Each file is re-checked right before it runs. Cancel finishes the current file, then stops. Per-file reasons and the batch summary use the layout contract's text. Nothing in the app window changes until the App UI phase (#5).

@@ -75,16 +75,35 @@ final class RemuxScanTests: XCTestCase {
         XCTAssertTrue(calls.isEmpty)
     }
 
-    func testExtraTracksInTheVideoFile() async throws {
+    func testFullVideoFileIsReadyAndUsesVideoOnly() async throws {
         let (result, _) = try await scan(video: [F.file("A.mkv")], audio: [F.file("A.mka")], probes: pairProbes("A", video: F.media(.video, .audio, .audio, .subtitles)))
-        XCTAssertEqual(result.item("A")?.issues, [.extraTracks(fileName: "A.mkv", audio: 2, subtitles: 1)])
-        XCTAssertEqual(result.item("A")?.reasonText, "Video file has extra tracks (2 audio, 1 subtitle)")
-        XCTAssertEqual(result.item("A")?.helpText, "A.mkv has 2 audio, 1 subtitle besides its video. Remux expects a video-only .mkv.")
+        let item = try XCTUnwrap(result.item("A"))
+        XCTAssertTrue(item.isReady)
+        XCTAssertEqual(item.issues, [])
+        XCTAssertEqual(item.notes, [.videoOnly(fileName: "A.mkv", audio: 2, subtitles: 1)])
+        XCTAssertEqual(item.reasonText, "Uses video only, ignores 2 audio, 1 subtitle")
+        XCTAssertEqual(item.helpText, "A.mkv also has 2 audio, 1 subtitle. Remux takes only its video track; the audio, subtitles and chapters come from the .mka.")
+        XCTAssertEqual(result.readyCount, 1)
+        XCTAssertEqual(RunJob.jobs(from: result, checked: ["A"]).map(\.baseName), ["A"])
     }
 
-    func testExtraTrackCountWording() {
-        XCTAssertEqual(ScanIssue.extraTracks(fileName: "A.mkv", audio: 0, subtitles: 2).reason, "Video file has extra tracks (2 subtitles)")
-        XCTAssertEqual(ScanIssue.extraTracks(fileName: "A.mkv", audio: 1, subtitles: 0).reason, "Video file has extra tracks (1 audio)")
+    func testVideoOnlyNoteWording() {
+        XCTAssertEqual(ScanNote.videoOnly(fileName: "A.mkv", audio: 0, subtitles: 2).reason, "Uses video only, ignores 2 subtitles")
+        XCTAssertEqual(ScanNote.videoOnly(fileName: "A.mkv", audio: 1, subtitles: 0).reason, "Uses video only, ignores 1 audio")
+    }
+
+    func testAVideoOnlyFileHasNoNote() async throws {
+        let (result, _) = try await scan(video: [F.file("A.mkv")], audio: [F.file("A.mka")], probes: pairProbes("A"))
+        XCTAssertEqual(result.item("A")?.notes, [])
+        XCTAssertNil(result.item("A")?.reasonText)
+    }
+
+    func testAnIssueHidesTheNote() async throws {
+        let (result, _) = try await scan(video: [F.file("A.mkv")], audio: [F.file("A.mka")], probes: pairProbes("A", video: F.media(.video, .audio)), existing: ["/v/Finished/A.mkv"])
+        let item = try XCTUnwrap(result.item("A"))
+        XCTAssertFalse(item.isReady)
+        XCTAssertEqual(item.reasonText, "A.mkv already exists in Output folder")
+        XCTAssertEqual(item.notes, [.videoOnly(fileName: "A.mkv", audio: 1, subtitles: 0)])
     }
 
     func testNoVideoTrackAndEmptyMKA() async throws {
@@ -93,8 +112,8 @@ final class RemuxScanTests: XCTestCase {
             audio: [F.file("A.mka"), F.file("B.mka")],
             probes: pairProbes("A", video: F.media(.subtitles)).merging(pairProbes("B", mka: F.media(.video))) { a, _ in a }
         )
-        XCTAssertEqual(result.item("A")?.issues, [.noVideoTrack(fileName: "A.mkv"), .extraTracks(fileName: "A.mkv", audio: 0, subtitles: 1)])
-        XCTAssertEqual(result.item("A")?.reasonText, "No video track in the .mkv (+1 more)")
+        XCTAssertEqual(result.item("A")?.issues, [.noVideoTrack(fileName: "A.mkv")])
+        XCTAssertEqual(result.item("A")?.reasonText, "No video track in the .mkv")
         XCTAssertEqual(result.item("B")?.issues, [.mkaHasNoAudioOrSubtitles(fileName: "B.mka")])
         XCTAssertEqual(result.item("B")?.reasonText, "No audio or subtitle tracks in the .mka")
     }

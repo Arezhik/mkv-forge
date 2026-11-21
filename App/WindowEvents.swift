@@ -70,6 +70,48 @@ final class WindowEventsView: NSView {
     }
 }
 
+/// The main window's accessor (v2.1 §1.4, §1.6). Attach with
+/// `.background { MainWindowAccessor(model: model) }`. It hands the NSWindow to the model
+/// (sheets, Esc, the G1 alert) and installs the proxy: a close while a batch runs shows
+/// G1 instead, and a close that goes through quits MKVForge, even with Settings open.
+struct MainWindowAccessor: NSViewRepresentable {
+    let model: AppModel
+
+    func makeNSView(context: Context) -> MainWindowAccessorView {
+        let view = MainWindowAccessorView()
+        view.model = model
+        return view
+    }
+
+    func updateNSView(_ view: MainWindowAccessorView, context: Context) {
+        view.model = model
+        view.installIfNeeded()
+    }
+}
+
+final class MainWindowAccessorView: NSView {
+    weak var model: AppModel?
+    // NSWindow.delegate is weak: this view keeps the proxy alive.
+    private lazy var proxy = SafeWindowDelegateProxy()
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        installIfNeeded()
+    }
+
+    func installIfNeeded() {
+        guard let window, let model else { return }
+        model.attachMainWindow(window)
+        proxy.shouldClose = { [weak model] _ in
+            MainActor.assumeIsolated { model?.mainWindowShouldClose() ?? true }
+        }
+        proxy.onClose = { [weak model] in
+            MainActor.assumeIsolated { model?.mainWindowWillClose() }
+        }
+        proxy.install(on: window)
+    }
+}
+
 /// Install with `proxy.install(on: window)` from an NSView's viewDidMoveToWindow.
 /// Keep the proxy alive (store it on that view); NSWindow.delegate is weak.
 final class SafeWindowDelegateProxy: NSObject, NSWindowDelegate {

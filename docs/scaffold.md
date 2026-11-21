@@ -13,7 +13,7 @@ Two independent workflows (tabs):
 Scan a source folder for MKVs. For each one, write a single clean `.mka` to a user-chosen output folder containing all audio tracks, all subtitle tracks and the chapters, with every tag and metadata field from the source MKV stripped.
 
 **Workflow 2 — Remux**
-Match encoded video-only `.mkv` files with the `.mka` files that share their exact base name, and remux each pair into a finished `.mkv` with that same base name.
+Match encoded `.mkv` files with the `.mka` files that share their exact base name, and remux each pair into a finished `.mkv` with that same base name. Only the video track of each `.mkv` is used.
 
 ## Naming Convention (matching key) — confirmed
 
@@ -24,7 +24,7 @@ Match encoded video-only `.mkv` files with the `.mka` files that share their exa
 
 | Type | Extension | v1 role |
 |------|-----------|---------|
-| Video | `.mkv` | Encoded video-only input (Workflow 2) |
+| Video | `.mkv` | Encoded video input (Workflow 2); only its video track is used |
 | Audio + subs + chapters | `.mka` | Output of Workflow 1, input of Workflow 2 |
 
 **Later (not v1):**
@@ -59,7 +59,7 @@ The action is called **Split** everywhere in the app (heading, button, menu item
 ## Workflow 2: Remux — confirmed 2026-11-18
 
 ### Source / Output
-- Video folder: encoded video-only `.mkv` files.
+- Video folder: encoded `.mkv` files. They may be full MKVs with audio and subtitle tracks; only the video track is used (decided 2026-11-20).
 - MKA folder: `.mka` files from Split (audio, subtitles, chapters).
 - Output folder: finished `<base name>.mkv` files.
 - v1 scans the **top level only** of each folder.
@@ -70,7 +70,6 @@ The action is called **Split** everywhere in the app (heading, button, menu item
 3. Issues are flagged and the user is informed:
    - missing video or MKA, or duplicate base names;
    - `<base name>.mkv` already exists in the output folder (never silently overwritten);
-   - the video `.mkv` contains audio or subtitle tracks (not video-only).
 4. User reviews the queue and can deselect items.
 5. User clicks **Remux**.
 6. The app runs `mkvmerge` for each Ready title.
@@ -83,7 +82,6 @@ The action is called **Split** everywhere in the app (heading, button, menu item
 - Language codes and default/forced flags are **left unset** in v1.
 
 ### Later features (confirmed)
-- Override a "video file has extra tracks" flag and remux anyway, taking only the video track from that file plus the `.mka`.
 - Set language codes and default/forced flags once Arezhik clarifies the rules.
 
 ## High-Level Architecture — confirmed 2026-11-18
@@ -103,7 +101,7 @@ Core (SPM, no UI)
 │   ├── SourceFolders
 │   └── Job / QueueItem
 ├── FileScanner             // top-level folder scan, matches by base name
-├── Validator               // completeness, existing output, extra tracks
+├── Validator               // completeness, existing output, video-only note
 ├── MKVToolNixLocator       // default paths + user-chosen override
 ├── MKVMergeRunner          // builds and executes mkvmerge commands
 └── QueueManager            // progress, cancellation, per-file errors, summary
@@ -173,7 +171,7 @@ mkvmerge -o "<output>/<base>.mkv" --title "" --no-date --disable-track-statistic
 The video track's name, language and flags are cleared the same way as Split's tracks (decided 2026-11-18). The `.mka` tracks are already clean from Split, so they get no per-track options. All paths are absolute: mkvmerge has no `--`, and an argument starting with `@` is read as an option file.
 Corrects Arezhik's `test-remux.sh`, where `--chapters "$mka"` consumed the `.mka` as a chapters file so its audio and subtitles were never added, and hard-coded track IDs pointed at nothing. Resulting order: video, then the `.mka`'s audio and subtitles (in Split's order), then chapters.
 
-**Scan / sync probes:** every scan runs `mkvmerge -J` (alias for `--identification-format json --identify`; there is no `--identify-json` option) on each file to detect tracks, flag extra tracks in Remux video files, and flag existing output (`.mka` in Split, `.mkv` in Remux).
+**Scan / sync probes:** every scan runs `mkvmerge -J` (alias for `--identification-format json --identify`; there is no `--identify-json` option) on each file to detect tracks, note audio or subtitle tracks in Remux video files (Ready, `Uses video only, ignores …`), and flag existing output (`.mka` in Split, `.mkv` in Remux).
 
 **Exit codes:** 0 = Done; 1 = finished with warnings, row gets a warning icon and short message (requirements may be refined later); 2 = Failed.
 
@@ -194,7 +192,7 @@ Run on every scan / sync; issues are flagged and the user is informed.
 - **Split sources:** flag a source that can't be split, or that has no audio track or no subtitle track (missing either one). Chapters are optional.
 - **Existing output:** flag (see Workflows 1 and 2).
 - **Also flagged (decided 2026-11-18, Phase 2 research):** a Remux video file with no video track; a `.mka` with no audio and no subtitle tracks; a file that isn't Matroska inside; a Remux Output folder that is the Video folder.
-- **Still changing:** flag files modified within the last minute at scan time (normally all files are in place before running).
+- **Still changing:** flag files modified within the last minute at scan time (normally all files are in place before running). Exception: a Remux scan doesn't flag an `.mka` that this session's Split batch just wrote, when its path, size and modification date match exactly (L32).
 - **Flagged items** are unchecked and cannot be processed in v1; overrides are later features.
 
 ## Out of Scope — confirmed 2026-11-18
@@ -212,7 +210,7 @@ Run on every scan / sync; issues are flagged and the user is informed.
 - Child folder scanning
 - Choosing specific audio/subtitle tracks (rules pending from Arezhik)
 - Setting language codes and default/forced flags
-- Overrides for flagged items (e.g. remux a video file with extra tracks, video only)
+- Overrides for flagged items
 - Fuzzy / close base-name matching
 - Console log pane (verbose `mkvmerge` output)
 - Track details panel

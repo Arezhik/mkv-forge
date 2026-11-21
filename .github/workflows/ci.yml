@@ -169,6 +169,10 @@ jobs:
             echo "App Sandbox should stay off so output files can be written next to the input"
             exit 1
           fi
+          # Ad-hoc signature (no identity, no secrets): seals the bundle so macOS lets
+          # testers' copies post the batch-finished notification (Phase 5 Q6).
+          codesign --force --sign - "$APP"
+          codesign --verify --verbose=2 "$APP"
           ditto -c -k --keepParent "$APP" "$GITHUB_WORKSPACE/MKVForge-universal.zip"
           test -s "$GITHUB_WORKSPACE/MKVForge-universal.zip"
 

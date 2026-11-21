@@ -3,12 +3,15 @@
 #
 # Usage (from anywhere in the repo):  scripts/check-project.sh
 #
-# Checks (docs/LESSONS.md L17, L19):
+# Checks (docs/LESSONS.md L17, L19, L31):
 #   1. Every App/*.swift file is in project.pbxproj (file reference and Sources phase),
 #      and every "X.swift in Sources" entry in project.pbxproj exists on disk.
 #   2. App/project.yml and project.pbxproj agree on the bundle ID and the deployment target.
 #   3. No two files differ only by letter case (Macs use a case-insensitive disk).
 #   4. The shared scheme for the app exists.
+#   5. Only the scene roots (struct ContentView, struct SettingsView) read @EnvironmentObject;
+#      subviews get the model passed in, since Table cells, context menus and toolbar items
+#      may not inherit the environment on macOS (L31).
 # Works with macOS's bash 3.2 and BSD tools, and with GNU tools. Exit 0 = clean.
 set -eu
 
@@ -59,5 +62,22 @@ DUPES="$(printf '%s\n' "$LIST" | tr 'A-Z' 'a-z' | sort | uniq -d)"
 # 4. Shared scheme.
 [ -f "$PROJ_DIR/xcshareddata/xcschemes/$APP.xcscheme" ] || bad "missing shared scheme $PROJ_DIR/xcshareddata/xcschemes/$APP.xcscheme"
 
+# 5. @EnvironmentObject only in the scene roots. Tracks the enclosing top-level type (a
+#    declaration at column 0) and ignores // comments.
+ENV_READERS="$(awk '
+  FNR == 1 { owner = "" }
+  { line = $0; sub(/\/\/.*/, "", line) }
+  line ~ /^(public |internal |fileprivate |private |final |@MainActor )*(struct|class|enum|extension|actor)[ \t]/ {
+    owner = line
+    sub(/^(public |internal |fileprivate |private |final |@MainActor )*(struct|class|enum|extension|actor)[ \t]+/, "", owner)
+    sub(/[^A-Za-z0-9_].*/, "", owner)
+  }
+  line ~ /@EnvironmentObject/ && owner != "ContentView" && owner != "SettingsView" {
+    print FILENAME ":" FNR ": " (owner == "" ? "(top level)" : owner)
+  }
+' App/*.swift)"
+[ -z "$ENV_READERS" ] || bad "@EnvironmentObject outside the scene roots ContentView and SettingsView; pass the model explicitly (docs/LESSONS.md L31):
+$ENV_READERS"
+
 [ "$FAIL" -eq 0 ] || exit 1
-echo "Project files are consistent: App sources, project.yml, case-unique paths, and the $APP scheme"
+echo "Project files are consistent: App sources, project.yml, case-unique paths, the $APP scheme, and @EnvironmentObject only in scene roots"

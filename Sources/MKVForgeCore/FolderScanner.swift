@@ -5,9 +5,17 @@ import Foundation
 // - Exact base-name matching. Remux rows are the union of the Video and Audio folders.
 // - Cheap file checks run first (duplicate, orphan, empty, unreadable, still changing).
 //   A row with any of them isn't identified, so a half-copied file is never read.
+//   Remux skips the still-changing check for an .mka that is exactly an output of this
+//   session's Split batches (`FreshOutputs`, L32).
+// - A Remux video file with audio or subtitle tracks is Ready with a note: only its video
+//   track is used.
 // - Then `mkvmerge -J` on the rest, at most `maxConcurrentProbes` at a time (L16), and
 //   the track checks. Existing output is checked on every scan and never overwritten.
 // - Folder walks and probes run off the main thread; cancelling the scan task stops it.
+// - Progress (layout contract v2.1 §2.2): `.listing` first, then `.reading(current:total:)`
+//   with total = MKV files (Split) or names (Remux) and current = names finished + 1,
+//   capped at total, so it never shows `0 of 9` and shows `9 of 9` while the last file is
+//   read. Updates are throttled to about 10 a second (L9); the first and last always go out.
 
 public enum ScanError: Error, Equatable, LocalizedError {
     case folderNotReadable(FolderRole, path: String)
@@ -28,6 +36,8 @@ public struct FolderScanner: Sendable {
     public var identifier: any TrackIdentifying
     public var now: @Sendable () -> Date
     public var maxConcurrentProbes: Int
+    /// Smallest gap between two progress updates. Tests set 0 to see every update.
+    public var progressInterval: TimeInterval = ProgressThrottle.defaultInterval
 
     public init(lister: any FolderListing = LocalFolderLister(), identifier: any TrackIdentifying, now: @escaping @Sendable () -> Date = { Date() }, maxConcurrentProbes: Int = 4) {
         self.lister = lister
@@ -38,9 +48,11 @@ public struct FolderScanner: Sendable {
 
     // MARK: Split
 
-    public func scanSplit(source: String, output: String) async throws -> ScanResult {
+    public func scanSplit(source: String, output: String, progress: (@Sendable (ScanProgress) -> Void)? = nil) async throws -> ScanResult {
         let scannedAt = now()
         DebugLog.shared.record(.queue, "Scan Split started")
+        var reporter = ScanProgressReporter(report: progress, interval: progressInterval)
+        reporter.listing()
         let groups = ScanFilter.byBaseName(ScanFilter.candidates(try list(source, .source), fileExtension: "mkv"))
         try Task.checkCancellation()
 
@@ -66,7 +78,8 @@ public struct FolderScanner: Sendable {
             items[name] = ScanItem(baseName: name, sourcePath: path, outputPath: outputPath, issues: issues)
         }
 
-        let probes = try await probeAll(toProbe)
+        reporter.start(total: groups.count, finished: groups.count - toProbe.count)
+        let probes = try await probeAll(toProbe) { _ in reporter.finish() }
         for (name, probe) in probes {
             guard var item = items[name] else { continue }
             let fileName = (item.sourcePath.map { ($0 as NSString).lastPathComponent }) ?? name
@@ -98,9 +111,12 @@ public struct FolderScanner: Sendable {
 
     // MARK: Remux
 
-    public func scanRemux(video: String, audio: String, output: String) async throws -> ScanResult {
+    /// `fresh`: the outputs of this session's recent Split batches (see `FreshOutputs`).
+    public func scanRemux(video: String, audio: String, output: String, fresh: FreshOutputs = FreshOutputs(), progress: (@Sendable (ScanProgress) -> Void)? = nil) async throws -> ScanResult {
         let scannedAt = now()
         DebugLog.shared.record(.queue, "Scan Remux started")
+        var reporter = ScanProgressReporter(report: progress, interval: progressInterval)
+        reporter.listing()
         let videos = ScanFilter.byBaseName(ScanFilter.candidates(try list(video, .video), fileExtension: "mkv"))
         let mkas = ScanFilter.byBaseName(ScanFilter.candidates(try list(audio, .audio), fileExtension: "mka"))
         try Task.checkCancellation()
@@ -109,6 +125,7 @@ public struct FolderScanner: Sendable {
         var items: [String: ScanItem] = [:]
         var videoProbes: [String: String] = [:]
         var mkaProbes: [String: String] = [:]
+        var ownOutputs = 0
         for name in Set(videos.keys).union(mkas.keys) {
             let videoFiles = videos[name] ?? []
             let mkaFiles = mkas[name] ?? []
@@ -120,7 +137,11 @@ public struct FolderScanner: Sendable {
             if videoFiles.isEmpty { issues.append(.noMatchingMKV) }
             if mkaFiles.isEmpty { issues.append(.noMatchingMKA) }
             if videoFiles.count == 1 { issues += cheapIssues(videoFiles[0], role: .video, scannedAt: scannedAt) }
-            if mkaFiles.count == 1 { issues += cheapIssues(mkaFiles[0], role: .audio, scannedAt: scannedAt) }
+            if mkaFiles.count == 1, let mkaPath {
+                let own = fresh.isOwnOutput(mkaPath, mkaFiles[0], at: scannedAt)
+                if own { ownOutputs += 1 }
+                issues += cheapIssues(mkaFiles[0], role: .audio, scannedAt: scannedAt, settled: own)
+            }
 
             let outputName = name + ".mkv"
             let outputPath = Self.join(output, outputName)
@@ -136,14 +157,28 @@ public struct FolderScanner: Sendable {
             items[name] = ScanItem(baseName: name, sourcePath: videoPath, mkaPath: mkaPath, outputPath: outputPath, issues: issues)
         }
 
+        if ownOutputs > 0 {
+            DebugLog.shared.record(.queue, "Scan Remux: \(ownOutputs) .mka just written by Split, not checked for still changing")
+        }
+
         var keyed: [String: String] = [:]
         for (name, path) in videoProbes { keyed["v:" + name] = path }
         for (name, path) in mkaProbes { keyed["a:" + name] = path }
-        let probes = try await probeAll(keyed)
+        // A name is finished when both of its files are read.
+        var pending: [String: Int] = [:]
+        for name in videoProbes.keys { pending[name] = 2 }
+        reporter.start(total: items.count, finished: items.count - videoProbes.count)
+        let probes = try await probeAll(keyed) { key in
+            let name = String(key.dropFirst(2))
+            let left = (pending[name] ?? 1) - 1
+            pending[name] = left
+            if left == 0 { reporter.finish() }
+        }
 
         for name in videoProbes.keys {
             guard let item = items[name], let videoPath = item.sourcePath, let mkaPath = item.mkaPath else { continue }
             var issues = item.issues
+            var notes: [ScanNote] = []
             var videoInfo: MediaInfo?
             var mkaInfo: MediaInfo?
             let videoName = (videoPath as NSString).lastPathComponent
@@ -159,7 +194,7 @@ public struct FolderScanner: Sendable {
                     let extraAudio = info.count(of: .audio)
                     let extraSubtitles = info.count(of: .subtitles)
                     if extraAudio + extraSubtitles > 0 {
-                        issues.append(.extraTracks(fileName: videoName, audio: extraAudio, subtitles: extraSubtitles))
+                        notes.append(.videoOnly(fileName: videoName, audio: extraAudio, subtitles: extraSubtitles))
                     }
                 }
             case nil:
@@ -177,7 +212,7 @@ public struct FolderScanner: Sendable {
             case nil:
                 break
             }
-            items[name] = ScanItem(baseName: name, sourcePath: videoPath, mkaPath: mkaPath, outputPath: item.outputPath, sourceInfo: videoInfo, mkaInfo: mkaInfo, issues: issues)
+            items[name] = ScanItem(baseName: name, sourcePath: videoPath, mkaPath: mkaPath, outputPath: item.outputPath, sourceInfo: videoInfo, mkaInfo: mkaInfo, issues: issues, notes: notes)
         }
         let result = ScanResult(mode: .remux, scannedAt: scannedAt, items: Array(items.values))
         DebugLog.shared.record(.queue, "Scan Remux finished: \(result.nameCount) names, \(result.pairCount) pairs, \(result.flaggedCount) flagged")
@@ -195,7 +230,9 @@ public struct FolderScanner: Sendable {
         }
     }
 
-    func cheapIssues(_ file: FileEntry, role: FolderRole, scannedAt: Date) -> [ScanIssue] {
+    /// `settled`: the file is known to be complete (an output MKVForge just wrote), so the
+    /// still-changing check is skipped.
+    func cheapIssues(_ file: FileEntry, role: FolderRole, scannedAt: Date, settled: Bool = false) -> [ScanIssue] {
         var issues: [ScanIssue] = []
         if file.size == 0 {
             issues.append(.emptyFile(role, fileName: file.name))
@@ -203,7 +240,7 @@ public struct FolderScanner: Sendable {
             issues.append(.unreadable(role, fileName: file.name, detail: "no permission to read it"))
         }
         // A future modification date (a share's clock running ahead) also counts.
-        if scannedAt.timeIntervalSince(file.modified) < Self.stillChangingInterval {
+        if !settled && scannedAt.timeIntervalSince(file.modified) < Self.stillChangingInterval {
             issues.append(.stillChanging(role, fileName: file.name))
         }
         return issues
@@ -225,7 +262,7 @@ public struct FolderScanner: Sendable {
     }
 
     /// Identifies every path, keyed like the input, at most `maxConcurrentProbes` at once.
-    private func probeAll(_ paths: [String: String]) async throws -> [String: MediaProbe] {
+    private func probeAll(_ paths: [String: String], onResult: (String) -> Void) async throws -> [String: MediaProbe] {
         let identifier = self.identifier
         let work = paths.sorted { $0.key < $1.key }
         var results: [String: MediaProbe] = [:]
@@ -244,6 +281,7 @@ public struct FolderScanner: Sendable {
             while let (key, probe) = try await group.next() {
                 results[key] = probe
                 try Task.checkCancellation()
+                onResult(key)
                 addNext()
             }
         }
@@ -261,5 +299,54 @@ public struct FolderScanner: Sendable {
             URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
         }
         return normal(a) == normal(b)
+    }
+}
+
+/// Where a scan is (layout contract v2.1 §2.2).
+public enum ScanProgress: Equatable, Sendable {
+    /// Listing the folders; the total isn't known yet.
+    case listing
+    /// Reading files with `mkvmerge -J`. `current` counts from 1 and never passes `total`.
+    case reading(current: Int, total: Int)
+}
+
+/// Turns finished-name counts into throttled progress updates. Used from one task only.
+struct ScanProgressReporter {
+    private let report: (@Sendable (ScanProgress) -> Void)?
+    private var throttle: ProgressThrottle
+    private var total = 0
+    private var finished = 0
+
+    init(report: (@Sendable (ScanProgress) -> Void)?, interval: TimeInterval) {
+        self.report = report
+        self.throttle = ProgressThrottle(minimumInterval: interval)
+    }
+
+    func listing() {
+        report?(.listing)
+    }
+
+    /// `finished` is the names that need no reading (flagged by the cheap checks).
+    mutating func start(total: Int, finished: Int) {
+        self.total = total
+        self.finished = max(0, min(finished, total))
+        publish(force: true)
+    }
+
+    mutating func finish() {
+        finished = min(finished + 1, total)
+        publish(force: finished >= total)
+    }
+
+    /// `current` = names finished + 1, capped at the total (Q4).
+    static func current(finished: Int, total: Int) -> Int {
+        min(finished + 1, total)
+    }
+
+    private mutating func publish(force: Bool) {
+        guard let report, total > 0 else { return }
+        if throttle.shouldPublish(force: force) {
+            report(.reading(current: Self.current(finished: finished, total: total), total: total))
+        }
     }
 }
