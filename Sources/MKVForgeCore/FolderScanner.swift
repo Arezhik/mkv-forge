@@ -5,6 +5,10 @@ import Foundation
 // - Exact base-name matching. Remux rows are the union of the Video and Audio folders.
 // - Cheap file checks run first (duplicate, orphan, empty, unreadable, still changing).
 //   A row with any of them isn't identified, so a half-copied file is never read.
+//   Remux skips the still-changing check for an .mka that is exactly an output of this
+//   session's Split batches (`FreshOutputs`, L32).
+// - A Remux video file with audio or subtitle tracks is Ready with a note: only its video
+//   track is used.
 // - Then `mkvmerge -J` on the rest, at most `maxConcurrentProbes` at a time (L16), and
 //   the track checks. Existing output is checked on every scan and never overwritten.
 // - Folder walks and probes run off the main thread; cancelling the scan task stops it.
@@ -107,7 +111,8 @@ public struct FolderScanner: Sendable {
 
     // MARK: Remux
 
-    public func scanRemux(video: String, audio: String, output: String, progress: (@Sendable (ScanProgress) -> Void)? = nil) async throws -> ScanResult {
+    /// `fresh`: the outputs of this session's recent Split batches (see `FreshOutputs`).
+    public func scanRemux(video: String, audio: String, output: String, fresh: FreshOutputs = FreshOutputs(), progress: (@Sendable (ScanProgress) -> Void)? = nil) async throws -> ScanResult {
         let scannedAt = now()
         DebugLog.shared.record(.queue, "Scan Remux started")
         var reporter = ScanProgressReporter(report: progress, interval: progressInterval)
@@ -120,6 +125,7 @@ public struct FolderScanner: Sendable {
         var items: [String: ScanItem] = [:]
         var videoProbes: [String: String] = [:]
         var mkaProbes: [String: String] = [:]
+        var ownOutputs = 0
         for name in Set(videos.keys).union(mkas.keys) {
             let videoFiles = videos[name] ?? []
             let mkaFiles = mkas[name] ?? []
@@ -131,7 +137,11 @@ public struct FolderScanner: Sendable {
             if videoFiles.isEmpty { issues.append(.noMatchingMKV) }
             if mkaFiles.isEmpty { issues.append(.noMatchingMKA) }
             if videoFiles.count == 1 { issues += cheapIssues(videoFiles[0], role: .video, scannedAt: scannedAt) }
-            if mkaFiles.count == 1 { issues += cheapIssues(mkaFiles[0], role: .audio, scannedAt: scannedAt) }
+            if mkaFiles.count == 1, let mkaPath {
+                let own = fresh.isOwnOutput(mkaPath, mkaFiles[0], at: scannedAt)
+                if own { ownOutputs += 1 }
+                issues += cheapIssues(mkaFiles[0], role: .audio, scannedAt: scannedAt, settled: own)
+            }
 
             let outputName = name + ".mkv"
             let outputPath = Self.join(output, outputName)
@@ -145,6 +155,10 @@ public struct FolderScanner: Sendable {
                 mkaProbes[name] = mkaPath
             }
             items[name] = ScanItem(baseName: name, sourcePath: videoPath, mkaPath: mkaPath, outputPath: outputPath, issues: issues)
+        }
+
+        if ownOutputs > 0 {
+            DebugLog.shared.record(.queue, "Scan Remux: \(ownOutputs) .mka just written by Split, not checked for still changing")
         }
 
         var keyed: [String: String] = [:]
@@ -164,6 +178,7 @@ public struct FolderScanner: Sendable {
         for name in videoProbes.keys {
             guard let item = items[name], let videoPath = item.sourcePath, let mkaPath = item.mkaPath else { continue }
             var issues = item.issues
+            var notes: [ScanNote] = []
             var videoInfo: MediaInfo?
             var mkaInfo: MediaInfo?
             let videoName = (videoPath as NSString).lastPathComponent
@@ -179,7 +194,7 @@ public struct FolderScanner: Sendable {
                     let extraAudio = info.count(of: .audio)
                     let extraSubtitles = info.count(of: .subtitles)
                     if extraAudio + extraSubtitles > 0 {
-                        issues.append(.extraTracks(fileName: videoName, audio: extraAudio, subtitles: extraSubtitles))
+                        notes.append(.videoOnly(fileName: videoName, audio: extraAudio, subtitles: extraSubtitles))
                     }
                 }
             case nil:
@@ -197,7 +212,7 @@ public struct FolderScanner: Sendable {
             case nil:
                 break
             }
-            items[name] = ScanItem(baseName: name, sourcePath: videoPath, mkaPath: mkaPath, outputPath: item.outputPath, sourceInfo: videoInfo, mkaInfo: mkaInfo, issues: issues)
+            items[name] = ScanItem(baseName: name, sourcePath: videoPath, mkaPath: mkaPath, outputPath: item.outputPath, sourceInfo: videoInfo, mkaInfo: mkaInfo, issues: issues, notes: notes)
         }
         let result = ScanResult(mode: .remux, scannedAt: scannedAt, items: Array(items.values))
         DebugLog.shared.record(.queue, "Scan Remux finished: \(result.nameCount) names, \(result.pairCount) pairs, \(result.flaggedCount) flagged")
@@ -215,7 +230,9 @@ public struct FolderScanner: Sendable {
         }
     }
 
-    func cheapIssues(_ file: FileEntry, role: FolderRole, scannedAt: Date) -> [ScanIssue] {
+    /// `settled`: the file is known to be complete (an output MKVForge just wrote), so the
+    /// still-changing check is skipped.
+    func cheapIssues(_ file: FileEntry, role: FolderRole, scannedAt: Date, settled: Bool = false) -> [ScanIssue] {
         var issues: [ScanIssue] = []
         if file.size == 0 {
             issues.append(.emptyFile(role, fileName: file.name))
@@ -223,7 +240,7 @@ public struct FolderScanner: Sendable {
             issues.append(.unreadable(role, fileName: file.name, detail: "no permission to read it"))
         }
         // A future modification date (a share's clock running ahead) also counts.
-        if scannedAt.timeIntervalSince(file.modified) < Self.stillChangingInterval {
+        if !settled && scannedAt.timeIntervalSince(file.modified) < Self.stillChangingInterval {
             issues.append(.stillChanging(role, fileName: file.name))
         }
         return issues

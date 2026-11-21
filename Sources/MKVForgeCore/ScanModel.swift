@@ -4,6 +4,8 @@ import Foundation
 // - One row per base name. Remux rows are the union of the Video and Audio folders.
 // - A row with any issue is an Issue row: unchecked, and it can't run in v1.
 // - Reason shows the first issue by priority plus "(+N more)"; the help text lists all.
+// - A note doesn't stop a row. A Ready row with a note shows it in Reason (a Remux video
+//   file with audio or subtitle tracks: only its video is used).
 
 public enum ScanMode: String, Equatable, Sendable {
     case split
@@ -51,7 +53,6 @@ public enum ScanIssue: Equatable, Sendable {
     case noAudio(fileName: String)
     case noSubtitles(fileName: String)
     case noVideoTrack(fileName: String)
-    case extraTracks(fileName: String, audio: Int, subtitles: Int)
     case mkaHasNoAudioOrSubtitles(fileName: String)
     case outputIsVideoFolder
     case outputExists(fileName: String)
@@ -67,7 +68,7 @@ public enum ScanIssue: Equatable, Sendable {
         case .unreadable: return 5
         case .notMatroska: return 6
         case .noTracks: return 7
-        case .noAudioOrSubtitles, .noAudio, .noSubtitles, .noVideoTrack, .extraTracks, .mkaHasNoAudioOrSubtitles: return 8
+        case .noAudioOrSubtitles, .noAudio, .noSubtitles, .noVideoTrack, .mkaHasNoAudioOrSubtitles: return 8
         case .outputExists: return 9
         }
     }
@@ -98,8 +99,6 @@ public enum ScanIssue: Equatable, Sendable {
             return "No subtitle tracks found"
         case .noVideoTrack:
             return "No video track in the .mkv"
-        case let .extraTracks(_, audio, subtitles):
-            return "Video file has extra tracks (\(Self.trackCounts(audio: audio, subtitles: subtitles)))"
         case .mkaHasNoAudioOrSubtitles:
             return "No audio or subtitle tracks in the .mka"
         case .outputIsVideoFolder:
@@ -136,14 +135,34 @@ public enum ScanIssue: Equatable, Sendable {
             return "No subtitle tracks found in \(name). Split needs at least one audio track and one subtitle track."
         case let .noVideoTrack(name):
             return "\(name) has no video track, so there's nothing to remux."
-        case let .extraTracks(name, audio, subtitles):
-            return "\(name) has \(Self.trackCounts(audio: audio, subtitles: subtitles)) besides its video. Remux expects a video-only .mkv."
         case let .mkaHasNoAudioOrSubtitles(name):
             return "\(name) has no audio or subtitle tracks, so there's nothing to add to the video."
         case .outputIsVideoFolder:
             return "The finished .mkv would replace the video file. Choose a different Output folder."
         case let .outputExists(name):
             return "\(name) is already in the Output folder. MKVForge never overwrites files. Move or rename it, then scan again."
+        }
+    }
+}
+
+/// Something a row should say that doesn't stop it from running. `reason` goes in the
+/// Reason column of a Ready row, `detail` in its help tag.
+public enum ScanNote: Equatable, Sendable {
+    /// Remux: the video .mkv also has audio or subtitle tracks. Only its video track is
+    /// used (`MKVMergeCommand.remux` passes `--no-audio --no-subtitles --no-chapters`).
+    case videoOnly(fileName: String, audio: Int, subtitles: Int)
+
+    public var reason: String {
+        switch self {
+        case let .videoOnly(_, audio, subtitles):
+            return "Uses video only, ignores \(Self.trackCounts(audio: audio, subtitles: subtitles))"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case let .videoOnly(name, audio, subtitles):
+            return "\(name) also has \(Self.trackCounts(audio: audio, subtitles: subtitles)). Remux takes only its video track; the audio, subtitles and chapters come from the .mka."
         }
     }
 
@@ -172,8 +191,10 @@ public struct ScanItem: Identifiable, Equatable, Sendable {
     public var mkaInfo: MediaInfo?
     /// Sorted by priority.
     public private(set) var issues: [ScanIssue]
+    /// Shown in Reason only while the row has no issues.
+    public private(set) var notes: [ScanNote]
 
-    public init(baseName: String, sourcePath: String?, mkaPath: String? = nil, outputPath: String, sourceInfo: MediaInfo? = nil, mkaInfo: MediaInfo? = nil, issues: [ScanIssue] = []) {
+    public init(baseName: String, sourcePath: String?, mkaPath: String? = nil, outputPath: String, sourceInfo: MediaInfo? = nil, mkaInfo: MediaInfo? = nil, issues: [ScanIssue] = [], notes: [ScanNote] = []) {
         self.baseName = baseName
         self.sourcePath = sourcePath
         self.mkaPath = mkaPath
@@ -181,20 +202,24 @@ public struct ScanItem: Identifiable, Equatable, Sendable {
         self.sourceInfo = sourceInfo
         self.mkaInfo = mkaInfo
         self.issues = Self.ordered(issues)
+        self.notes = notes
     }
 
     /// Ready rows start checked. Flagged rows can't be checked in v1.
     public var isReady: Bool { issues.isEmpty }
 
-    /// The Reason column: the first issue, plus "(+N more)". Nil when Ready (the UI shows —).
+    /// The Reason column: the first issue, plus "(+N more)". A Ready row shows its first
+    /// note the same way. Nil when Ready with no notes (the UI shows —).
     public var reasonText: String? {
-        guard let first = issues.first else { return nil }
-        return issues.count > 1 ? "\(first.reason) (+\(issues.count - 1) more)" : first.reason
+        let reasons = issues.isEmpty ? notes.map(\.reason) : issues.map(\.reason)
+        guard let first = reasons.first else { return nil }
+        return reasons.count > 1 ? "\(first) (+\(reasons.count - 1) more)" : first
     }
 
-    /// The Reason help tag: every issue's detail, one per line.
+    /// The Reason help tag: every issue's detail (or, when Ready, every note's), one per line.
     public var helpText: String? {
-        issues.isEmpty ? nil : issues.map(\.detail).joined(separator: "\n")
+        let details = issues.isEmpty ? notes.map(\.detail) : issues.map(\.detail)
+        return details.isEmpty ? nil : details.joined(separator: "\n")
     }
 
     static func ordered(_ issues: [ScanIssue]) -> [ScanIssue] {

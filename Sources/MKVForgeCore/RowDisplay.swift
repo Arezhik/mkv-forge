@@ -7,7 +7,8 @@ import Foundation
 //   %; Done `checkmark.circle.fill` (green); Done · warning `exclamationmark.triangle.fill`
 //   (yellow icon); Failed `xmark.octagon.fill` (red).
 // - Reason: the issue, the first mkvmerge warning line with `(+N more)`, or the error;
-//   `—` when there's none. The help tag holds the full text.
+//   a Ready row shows its scan note (`Uses video only, …`); `—` when there's none. The
+//   help tag holds the full text.
 // - Flagged rows: checkbox unchecked and disabled, `.help("Flagged: <reason>")`, full contrast.
 // - VoiceOver: one element `<name>, <status>, <reason>`; checkbox `Include <name>`.
 
@@ -64,7 +65,8 @@ public struct RowDisplay: Equatable, Sendable {
                 symbol = "chevron.forward.circle"
                 statusText = "Ready"
                 tint = .secondary
-                reasonHelp = nil
+                reasonText = row.item.reasonText
+                reasonHelp = row.item.helpText
             }
         case .waiting?:
             if row.wontStart {

@@ -23,6 +23,22 @@ final class RowDisplayTests: XCTestCase {
         XCTAssertNil(d.outputPath)
     }
 
+    func testReadyRowWithAVideoOnlyNote() {
+        let base = U.ready("A", mode: .remux)
+        let item = ScanItem(baseName: "A", sourcePath: base.sourcePath, mkaPath: base.mkaPath, outputPath: base.outputPath,
+                            sourceInfo: base.sourceInfo, mkaInfo: base.mkaInfo, notes: [.videoOnly(fileName: "A.mkv", audio: 2, subtitles: 1)])
+        let d = RowDisplay(row(item), mode: .remux, locked: false)
+        XCTAssertEqual(d.statusText, "Ready")
+        XCTAssertEqual(d.symbol, "chevron.forward.circle")
+        XCTAssertEqual(d.reason, "Uses video only, ignores 2 audio, 1 subtitle")
+        XCTAssertEqual(d.reasonHelp, "A.mkv also has 2 audio, 1 subtitle. Remux takes only its video track; the audio, subtitles and chapters come from the .mka.")
+        XCTAssertTrue(d.checkboxEnabled)
+        XCTAssertNil(d.checkboxHelp)
+        XCTAssertEqual(d.accessibilityLabel, "A, Ready, Uses video only, ignores 2 audio, 1 subtitle")
+        // Once it runs, the row shows its run status instead.
+        XCTAssertEqual(RowDisplay(row(item, .done(outputPath: "/o/A.mkv")), mode: .remux, locked: false).reason, "—")
+    }
+
     func testFlaggedRowIsOrangeAndCantBeChecked() {
         let item = U.flagged("B", [.outputExists(fileName: "B.mka")])
         let d = RowDisplay(row(item, checked: false), mode: .split, locked: false)

@@ -46,6 +46,9 @@ final class AppModel: ObservableObject {
     private var scanTask: Task<Void, Never>?
     private var runTask: Task<Void, Never>?
     private var runner: BatchRunner?
+    /// This session's recent Split outputs: a Remux scan doesn't flag them as still
+    /// changing (L32). Memory only.
+    private var freshOutputs = FreshOutputs()
     private var toolCheck = 0
     private var escapeMonitor: Any?
     /// Set once MKVForge has decided to quit; no more alerts or batch-end feedback.
@@ -161,6 +164,8 @@ final class AppModel: ObservableObject {
         DebugLog.shared.record(.queue, "Scan \(mode.displayName) started")
         announce(ScanCaption.startedAnnouncement)
         let scanner = FolderScanner(identifier: MKVMergeIdentifier(executable: tool))
+        freshOutputs.prune(now: Date())
+        let fresh = freshOutputs
         let (progress, progressInput) = AsyncStream<ScanProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
         let pump = Task { [weak self] in
             for await update in progress {
@@ -175,7 +180,7 @@ final class AppModel: ObservableObject {
                 case .split:
                     result = try await scanner.scanSplit(source: folders[0], output: folders[1], progress: report)
                 case .remux:
-                    result = try await scanner.scanRemux(video: folders[0], audio: folders[1], output: folders[2], progress: report)
+                    result = try await scanner.scanRemux(video: folders[0], audio: folders[1], output: folders[2], fresh: fresh, progress: report)
                 }
                 progressInput.finish()
                 pump.cancel()
@@ -296,6 +301,10 @@ final class AppModel: ObservableObject {
         }
         runner = nil
         runTask = nil
+        if mode == .split {
+            freshOutputs.prune(now: Date())
+            freshOutputs.record(paths: summary.outputPaths, at: Date())
+        }
         let action = workflow.batchEnded(
             summary,
             appIsActive: NSApp.isActive,
