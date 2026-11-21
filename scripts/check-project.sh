@@ -3,7 +3,7 @@
 #
 # Usage (from anywhere in the repo):  scripts/check-project.sh
 #
-# Checks (docs/LESSONS.md L17, L19, L31):
+# Checks (docs/LESSONS.md L17, L19, L31, L33):
 #   1. Every App/*.swift file is in project.pbxproj (file reference and Sources phase),
 #      and every "X.swift in Sources" entry in project.pbxproj exists on disk.
 #   2. App/project.yml and project.pbxproj agree on the bundle ID and the deployment target.
@@ -12,6 +12,9 @@
 #   5. Only the scene roots (struct ContentView, struct SettingsView) read @EnvironmentObject;
 #      subviews get the model passed in, since Table cells, context menus and toolbar items
 #      may not inherit the environment on macOS (L31).
+#   6. The app icon: App/Assets.xcassets has AppIcon.appiconset, the catalog is in the
+#      Resources phase, ASSETCATALOG_COMPILER_APPICON_NAME is AppIcon, and project.pbxproj
+#      has no unresolved XcodeGen TEMP_ object IDs (L33).
 # Works with macOS's bash 3.2 and BSD tools, and with GNU tools. Exit 0 = clean.
 set -eu
 
@@ -79,5 +82,13 @@ ENV_READERS="$(awk '
 [ -z "$ENV_READERS" ] || bad "@EnvironmentObject outside the scene roots ContentView and SettingsView; pass the model explicitly (docs/LESSONS.md L31):
 $ENV_READERS"
 
+# 6. App icon wiring and a cleanly generated project.
+ICONSET="App/Assets.xcassets/AppIcon.appiconset"
+[ -f "$ICONSET/Contents.json" ] || bad "missing $ICONSET/Contents.json (the app icon)"
+grep -q '/\* Assets.xcassets in Resources \*/ = {isa = PBXBuildFile' "$PBX" || bad "App/Assets.xcassets is not in the Resources build phase of $PBX"
+APPICON="$(sed -n 's/^[[:space:]]*ASSETCATALOG_COMPILER_APPICON_NAME = \([^;]*\);.*/\1/p' "$PBX" | sort -u)"
+[ "$APPICON" = AppIcon ] || bad "$PBX should set ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon (found: $(echo $APPICON))"
+if grep -q 'TEMP_' "$PBX"; then bad "$PBX has unresolved TEMP_ object IDs (an orphaned XcodeGen group, L33)"; fi
+
 [ "$FAIL" -eq 0 ] || exit 1
-echo "Project files are consistent: App sources, project.yml, case-unique paths, the $APP scheme, and @EnvironmentObject only in scene roots"
+echo "Project files are consistent: App sources, project.yml, case-unique paths, the $APP scheme, @EnvironmentObject only in scene roots, and the app icon"

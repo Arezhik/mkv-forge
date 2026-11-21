@@ -15,7 +15,7 @@ Read this before the first change. The reasons behind each rule are in docs/LESS
 
 ## Project files
 - Never hand-edit `App/MKVForge.xcodeproj/project.pbxproj`. To add, rename, or remove an app `.swift` file, or change any other project setting, update `App/project.yml` and run `xcodegen generate` in `App/`, then commit both files. The Linux VMs have no XcodeGen, so a change that needs it is made on a Mac; on Linux, stop and say so in the PR instead of editing the pbxproj. The only exception is `scripts/bump-version.sh`, which changes the version lines. `scripts/check-project.sh` fails if the two files drift (L19).
-- `xcodegen generate` has not been run on this repo yet: the committed project.pbxproj is hand-written, and the first run rewrites every object ID. Do that first run on a Mac in its own small PR (planned with the app icon PR, before #6).
+- Since the app icon PR (0.4.1), the committed project.pbxproj is XcodeGen 2.48.0 output. Regenerate from a clone folder named `mkv-forge` (the local package's folder reference takes the folder's name). A second `xcodegen generate` must change nothing, and the project must have no `TEMP_` object IDs (L33).
 - No two tracked paths may differ only by letter case (Macs use a case-insensitive disk). Name extra schemes and targets so they differ by more than case (L17).
 - Diagnostic environment variables don't go in the shared scheme. Read them from the environment, and print their state in the debug log header (L21).
 

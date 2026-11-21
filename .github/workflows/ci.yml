@@ -159,6 +159,10 @@ jobs:
           INFO="$APP/Contents/Info.plist"
           test -f "$INFO"
           plutil -extract CFBundleIdentifier raw "$INFO" | grep -qx com.arezhik.MKVForge
+          # The app icon (L33): actool compiled App/Assets.xcassets into the bundle.
+          plutil -extract CFBundleIconName raw "$INFO" | grep -qx AppIcon
+          test -s "$APP/Contents/Resources/Assets.car"
+          test -s "$APP/Contents/Resources/AppIcon.icns"
           # MKVForge takes folders from Choose… buttons only, so it declares no document types.
           if plutil -extract CFBundleDocumentTypes xml1 -o - "$INFO" >/dev/null 2>&1; then
             echo "Info.plist should not declare CFBundleDocumentTypes (no drag and drop or Open With)"
