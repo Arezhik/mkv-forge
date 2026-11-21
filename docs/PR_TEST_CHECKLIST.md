@@ -31,6 +31,7 @@ Arezhik approves the merge only after this sheet passes.
 - [ ] During a scan, the Scan row shows a spinner and `Scanning… N of M`; the mode switch, Choose…, checkboxes and the primary action are disabled; Esc stops the scan and brings back the previous rows and caption unchanged (contract v2.1 addendum §2, G2).
 - [ ] The scheme passes no leftover diagnostic environment variables (Product → Scheme → Edit Scheme → Run → Arguments), and the debug log header lists any toggles that are on (L21).
 - [ ] Help → Export Debug Log saves to the Desktop, and the new feature's events are in it.
+- [ ] The Dock, Finder, Get Info and About MKVForge show the MKVForge icon (orange and purple tracks in a steel clamp), not the generic app icon (L33).
 - [ ] With `mkvmerge` missing, a clear message appears and nothing crashes. With it installed, the debug log shows its path and version.
 - [ ] Scan in Split, switch to Remux and back (picker and ⌘1/⌘2); scan in both modes and switch again; after a scan, Choose… a different folder; re-scan after deleting a file; right-click a row; repeat after a finished batch (Show in Finder on a Done row). Nothing crashes, and the row selection clears on every mode switch (L31).
 - [ ] Split into a folder, switch to Remux with that folder as Audio and scan within a minute: the new `.mka` files aren't `still changing`. An `.mka` copied in by hand just before the scan still is (L32).

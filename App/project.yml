@@ -1,6 +1,7 @@
-# Source of truth for App/MKVForge.xcodeproj (docs/LESSONS.md L19). Never hand-edit
-# project.pbxproj: change this file, then `brew install xcodegen; cd App && xcodegen generate`,
-# and commit both. Only scripts/bump-version.sh edits the version lines in both.
+# Source of truth for App/MKVForge.xcodeproj (docs/LESSONS.md L19, L33). Never hand-edit
+# project.pbxproj: change this file, then `brew install xcodegen; cd App && xcodegen generate`
+# (XcodeGen 2.48.0) in a clone folder named mkv-forge, and commit both. A second run must
+# change nothing. Only scripts/bump-version.sh edits the version lines in both.
 # The Xcode project must not sit next to Package.swift, and the package must not be
 # named MKVForge, or Xcode reports the products as missing.
 name: MKVForge
@@ -8,14 +9,19 @@ options:
   bundleIdPrefix: com.arezhik
   deploymentTarget:
     macOS: "15.0"
-  createIntermediateGroups: true
+  # Off: with `path: .` below, intermediate groups leave the App group out of the project
+  # under random TEMP_ IDs (L33).
+  createIntermediateGroups: false
+  defaultConfig: Release
 settings:
-  MACOSX_DEPLOYMENT_TARGET: "15.0"
-  SDKROOT: macosx
-  SUPPORTED_PLATFORMS: macosx
-  SUPPORTS_MACCATALYST: NO
-  SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
-  SWIFT_VERSION: "5.0"
+  # XcodeGen ignores plain keys next to configs:, so project-wide keys go under base: (L33).
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    SDKROOT: macosx
+    SUPPORTED_PLATFORMS: macosx
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    SWIFT_VERSION: "5.0"
   configs:
     Debug:
       # Do not set ARCHS here. Debug follows the run destination (My Mac),
@@ -35,6 +41,8 @@ targets:
         includes:
           - "*.swift"
           - Info.plist
+          # The app icon (AppIcon.appiconset). XcodeGen puts the catalog in the Resources phase.
+          - Assets.xcassets
     # App Sandbox stays off. A sandboxed app can read a chosen file but cannot
     # create a new file next to it, and ad-hoc "Sign to Run Locally" has no
     # provisioning profile for a sandbox entitlement.
@@ -46,12 +54,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.arezhik.MKVForge
         PRODUCT_NAME: MKVForge
         GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Info.plist declares no document types (no drag and drop or Open With).
         INFOPLIST_FILE: Info.plist
         # Version: change with scripts/bump-version.sh only, so this file and the
         # .xcodeproj stay in sync. MARKETING_VERSION is what users see (MAJOR.MINOR.PATCH).
-        MARKETING_VERSION: "0.4.0"
-        CURRENT_PROJECT_VERSION: "4"
+        MARKETING_VERSION: "0.4.1"
+        CURRENT_PROJECT_VERSION: "5"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_REQUIRED: NO
