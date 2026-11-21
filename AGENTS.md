@@ -13,6 +13,12 @@ Read this before the first change. The reasons behind each rule are in docs/LESS
 - You can't run Xcode, `xcodebuild`, the app, or Apple-only frameworks. The macOS CI jobs are the real app build. Say in the PR which checks ran on Linux and which only CI or a Mac can cover (L24).
 - The Linux gate is CI's Linux job: `bash scripts/bump-version.sh --check`, `bash scripts/check-project.sh`, then `swift test` and `swift build`, both with `-Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`. Run all of them before you open the PR.
 
+### Local Linux VM (no Swift installed)
+- Apply these rules only when `command -v swift` finds nothing (or when `xcodegen` exists at `/workspace/macos-dev-test/projects/mkv-forge/icon/tools/XcodeGen-2.48.0/.build/x86_64-unknown-linux-gnu/release/xcodegen`). Everywhere else, the rules above apply unchanged.
+- Edit source files directly in the working tree. Don't generate `apply_changes.py` or `verify.diff`.
+- If project structure or targets changed, run `/workspace/macos-dev-test/projects/mkv-forge/icon/tools/XcodeGen-2.48.0/.build/x86_64-unknown-linux-gnu/release/xcodegen generate` in `App/` (from a clone folder named `mkv-forge`, per L33). Run `bash scripts/check-project.sh` and `bash scripts/bump-version.sh --check`. Inspect `git diff` so only intended changes are staged. Don't run `swift test`, `swift build`, or `xcodebuild` here; they run in GitHub's macOS and Linux CI after push.
+- Push to a feature branch `grok/<slug>`. Run `gh run list` only if `gh auth status` succeeds; otherwise note that CI should be checked on GitHub.
+
 ## Project files
 - Never hand-edit `App/MKVForge.xcodeproj/project.pbxproj`. To add, rename, or remove an app `.swift` file, or change any other project setting, update `App/project.yml` and run `xcodegen generate` in `App/`, then commit both files. The Linux VMs have no XcodeGen, so a change that needs it is made on a Mac; on Linux, stop and say so in the PR instead of editing the pbxproj. The only exception is `scripts/bump-version.sh`, which changes the version lines. `scripts/check-project.sh` fails if the two files drift (L19).
 - Since the app icon PR (0.4.1), the committed project.pbxproj is XcodeGen 2.48.0 output. Regenerate from a clone folder named `mkv-forge` (the local package's folder reference takes the folder's name). A second `xcodegen generate` must change nothing, and the project must have no `TEMP_` object IDs (L33).
