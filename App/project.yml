@@ -43,6 +43,8 @@ targets:
           - Info.plist
           # The app icon (AppIcon.appiconset). XcodeGen puts the catalog in the Resources phase.
           - Assets.xcassets
+        excludes:
+          - "MKVUITests/**"
     # App Sandbox stays off. A sandboxed app can read a chosen file but cannot
     # create a new file next to it, and ad-hoc "Sign to Run Locally" has no
     # provisioning profile for a sandbox entitlement.
@@ -82,3 +84,27 @@ targets:
           ARCHS: [arm64, x86_64]
     scheme:
       gatherCoverageData: false
+  MKVForgeUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: MKVUITests
+    dependencies:
+      - target: MKVForge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arezhik.MKVForgeUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: MKVForge
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+schemes:
+  MKVForge-UITests:
+    build:
+      targets:
+        MKVForge: all
+        MKVForgeUITests: [test]
+    test:
+      targets:
+        - MKVForgeUITests

@@ -18,6 +18,7 @@ Read this before the first change. The reasons behind each rule are in docs/LESS
 - Edit source files directly in the working tree. Don't generate `apply_changes.py` or `verify.diff`.
 - Run `./scripts/verify-linux.sh` from a clone folder named `mkv-forge` (per L33). It regenerates the Xcode project with XcodeGen when Swift is absent and `App/project.yml` exists, then runs `scripts/check-project.sh` and `scripts/bump-version.sh --check`. Inspect `git diff` so only intended changes are staged. Don't run `swift test`, `swift build`, or `xcodebuild` here; they run in GitHub's macOS and Linux CI after push.
 - To add a new Core type and its test, run `./scripts/scaffold-swift.sh <Name> [Subfolder]` first instead of creating the files by hand.
+- To add a new UI flow test, run `./scripts/scaffold-xcuitest.sh <FlowName>` first instead of creating the file by hand.
 - Push to a feature branch `grok/<slug>`. Run `gh run list` only if `gh auth status` succeeds; otherwise note that CI should be checked on GitHub.
 
 ## Project files
