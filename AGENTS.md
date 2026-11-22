@@ -63,3 +63,32 @@ Read this before the first change. The reasons behind each rule are in docs/LESS
 - Requirements: docs/scaffold.md (confirmed with Arezhik 2026-11-18). UI layout: docs/design/v1-layout-contract_v2.md (Design Bot, approved v2) plus docs/design/v1-layout-contract_v2.1-addendum.md (approved 2026-11-19: quit or close while a batch runs, and scanning); their mockup PNGs and PDF stay with Design Bot and are not in the repo (docs/design/README.md). Any UI change follows the contract; a layout it doesn't cover needs a contract update first.
 - Phases (one per PR): 1 Setup, 2 Scanning and checks, 3 Running, 4 Design (done), 5 App UI, 6 Mac test (docs/scaffold.md, Next Implementation Steps).
 - Scope: SPEC.md. Test sheet template: docs/PR_TEST_CHECKLIST.md. Tester guide: TESTERS.md. Lessons: docs/LESSONS.md. CI artifact: `MKVForge-universal.zip`.
+
+## GitHub Issue & Comment Format (Token-Efficient Spec)
+When creating, rewriting, or commenting on GitHub issues (including triage, design notes, or research), **never post conversational prose**. Preserve the original human description at the top if editing an existing issue, and append or post strictly in this compact schema:
+
+### For Issue Rewrites / Specs (`## Agent Spec`)
+```markdown
+## Agent Spec
+### Goal
+<1–2 sentences: exact behavioral change>
+
+### Rules & Logic
+- <Deterministic rule or edge-case behavior>
+
+### UI / UX
+- <Control type, exact label, default state, placement — or "None">
+
+### Test Cases (Input -> Expected)
+- `<Input>` -> `<Expected result / output>`
+
+### Constraints
+- <What must NOT change>
+```
+
+### For Research / Triage / Design Comments
+Keep comments under 15 lines using only:
+- **Relevant Files:** `<path/to/File.swift>` (`SymbolName`)
+- **Findings / Edge Cases:** <1–3 terse bullets>
+- **Proposed Approach:** <2–4 terse bullets>
+- **Open Questions:** <Bullet list, or "None">
