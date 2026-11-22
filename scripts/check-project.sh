@@ -6,7 +6,8 @@
 # Checks (docs/LESSONS.md L17, L19, L31, L33):
 #   1. Every App/*.swift file is in project.pbxproj (file reference and Sources phase),
 #      and every "X.swift in Sources" entry in project.pbxproj exists on disk.
-#   2. App/project.yml and project.pbxproj agree on the bundle ID and the deployment target.
+#   2. App/project.yml and project.pbxproj agree on bundle IDs (app and any UI
+#      test target) and the deployment target.
 #   3. No two files differ only by letter case (Macs use a case-insensitive disk).
 #   4. The shared scheme for the app exists.
 #   5. Only the scene roots (struct ContentView, struct SettingsView) read @EnvironmentObject;
@@ -38,7 +39,14 @@ for f in App/*.swift; do
 done
 BUILT="$(sed -n 's/.*\/\* \([^ ]*\.swift\) in Sources \*\/ = {isa = PBXBuildFile.*/\1/p' "$PBX" | sort -u)"
 for name in $BUILT; do
-  [ -f "App/$name" ] || bad "$PBX builds $name, but App/$name is missing"
+  if [ -f "App/$name" ]; then
+    continue
+  fi
+  # UI test sources live in an App subdirectory (e.g. App/MKVUITests).
+  if [ -n "$(find App -mindepth 2 -type f -name "$name" | head -1)" ]; then
+    continue
+  fi
+  bad "$PBX builds $name, but App/$name is missing"
 done
 
 # 2. project.yml vs project.pbxproj.
@@ -48,7 +56,11 @@ if [ -f "$YML" ]; then
   for key in PRODUCT_BUNDLE_IDENTIFIER MACOSX_DEPLOYMENT_TARGET; do
     y="$(yml_val "$key")"; p="$(pbx_val "$key")"
     [ -n "$p" ] || { bad "$key not found in $PBX"; continue; }
-    [ "$(printf '%s\n' "$p" | wc -l | tr -d ' ')" = 1 ] || bad "$PBX has different $key values: $(echo $p)"
+    # The app and a UI test target have different bundle IDs. Other keys
+    # (deployment target) must still be a single shared value.
+    if [ "$key" != PRODUCT_BUNDLE_IDENTIFIER ]; then
+      [ "$(printf '%s\n' "$p" | wc -l | tr -d ' ')" = 1 ] || bad "$PBX has different $key values: $(echo $p)"
+    fi
     [ -z "$y" ] || [ "$y" = "$p" ] || bad "$YML $key ($(echo $y)) != $PBX ($(echo $p))"
   done
 fi

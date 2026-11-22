@@ -16,14 +16,27 @@
 		9D3EC5453A7A6E609E581A56 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27FDD737995B92AF6CF52518 /* SettingsView.swift */; };
 		A63CF4846C73C692287BC8A9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F8B031BB11CC580C1C724420 /* Assets.xcassets */; };
 		C5B5C9AB62D0B5CFEFCCFF1C /* MKVForgeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2D29AEF9CAE1EB452E43FA8F /* MKVForgeCore */; };
+		F0B9A509237EADA6B4A54A6B /* HelloWorldUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AA30F6A00FDE85D013B427 /* HelloWorldUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AF38ECF062D51E44DE1B6ED1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 164249F756D77A3E5D040F27 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6BF6BA29E23A1B3A7C5A9B83;
+			remoteInfo = MKVForge;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		0D576B60D15BB3A9F84A8579 /* DebugLogSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogSupport.swift; sourceTree = "<group>"; };
 		1496BB0D61ABEEFD71BF9129 /* MKVForge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MKVForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		17AA30F6A00FDE85D013B427 /* HelloWorldUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelloWorldUITests.swift; sourceTree = "<group>"; };
 		2696D2594905DBACDA07FB03 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		27FDD737995B92AF6CF52518 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		389CDAC04276C249F212248B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		40C3B8B16D0EFAC73549387C /* MKVForgeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MKVForgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		732DB57213FB70CB4DBF41FC /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A8576A8C62853B512A8BB65F /* MKVForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MKVForgeApp.swift; sourceTree = "<group>"; };
 		BB08216AEF3E32F3EDDFEDBD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -48,14 +61,24 @@
 			isa = PBXGroup;
 			children = (
 				1496BB0D61ABEEFD71BF9129 /* MKVForge.app */,
+				40C3B8B16D0EFAC73549387C /* MKVForgeUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		61D27E5330AE75B213DC0CFA /* MKVUITests */ = {
+			isa = PBXGroup;
+			children = (
+				17AA30F6A00FDE85D013B427 /* HelloWorldUITests.swift */,
+			);
+			path = MKVUITests;
 			sourceTree = "<group>";
 		};
 		65D143CC1530E66A762ECD60 = {
 			isa = PBXGroup;
 			children = (
 				A9FE7073A0B61960500E383D /* App */,
+				61D27E5330AE75B213DC0CFA /* MKVUITests */,
 				A2454ED86F21AF0371544297 /* Packages */,
 				5055986C8801CFB694A94D65 /* Products */,
 			);
@@ -89,6 +112,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		13CD577F58A7D09193FA8FB3 /* MKVForgeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 668B2349E3E5042336252030 /* Build configuration list for PBXNativeTarget "MKVForgeUITests" */;
+			buildPhases = (
+				43C202C7A523B35A62E7CC6E /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				765EC0ADD4C395E106A294EE /* PBXTargetDependency */,
+			);
+			name = MKVForgeUITests;
+			packageProductDependencies = (
+			);
+			productName = MKVForgeUITests;
+			productReference = 40C3B8B16D0EFAC73549387C /* MKVForgeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		6BF6BA29E23A1B3A7C5A9B83 /* MKVForge */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 634AD6EC55531A9CC543DB97 /* Build configuration list for PBXNativeTarget "MKVForge" */;
@@ -118,6 +159,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					13CD577F58A7D09193FA8FB3 = {
+						ProvisioningStyle = Manual;
+						TestTargetID = 6BF6BA29E23A1B3A7C5A9B83;
+					};
 					6BF6BA29E23A1B3A7C5A9B83 = {
 						ProvisioningStyle = Manual;
 					};
@@ -141,6 +186,7 @@
 			projectRoot = "";
 			targets = (
 				6BF6BA29E23A1B3A7C5A9B83 /* MKVForge */,
+				13CD577F58A7D09193FA8FB3 /* MKVForgeUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -157,6 +203,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		43C202C7A523B35A62E7CC6E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0B9A509237EADA6B4A54A6B /* HelloWorldUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A09787FAC5C7375D848C8092 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -172,6 +226,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		765EC0ADD4C395E106A294EE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6BF6BA29E23A1B3A7C5A9B83 /* MKVForge */;
+			targetProxy = AF38ECF062D51E44DE1B6ED1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1E37DC68975BDAAB4B9388BA /* Release */ = {
@@ -298,6 +360,26 @@
 			};
 			name = Debug;
 		};
+		AB52FCB0E21EBD664B789B83 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForgeUITests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = MKVForge;
+			};
+			name = Debug;
+		};
 		EC59FD61944C0A786DF30F43 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -364,6 +446,26 @@
 			};
 			name = Debug;
 		};
+		F6A9FEB3ECC39F85864F8483 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForgeUITests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = MKVForge;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -381,6 +483,15 @@
 			buildConfigurations = (
 				A7B15BB71A3C5A64576E1802 /* Debug */,
 				1E37DC68975BDAAB4B9388BA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		668B2349E3E5042336252030 /* Build configuration list for PBXNativeTarget "MKVForgeUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB52FCB0E21EBD664B789B83 /* Debug */,
+				F6A9FEB3ECC39F85864F8483 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
