@@ -6,7 +6,12 @@ import MKVForgeCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Created on first use, from the App's body at launch.
-    private(set) lazy var model = AppModel()
+    private(set) lazy var model = AppModel(defaults: UITestingLaunch.defaults)
+
+    /// UI tests must not restore a previous window or panel.
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        !UITestingLaunch.isActive
+    }
 
     /// ⌘Q, the Dock's Quit, logout and shutdown: G1 while a batch runs (v2.1 §1.4).
     /// Never holds `.terminateLater` across a file.
