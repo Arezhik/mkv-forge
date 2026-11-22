@@ -84,13 +84,23 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings.load(from: defaults).settings.activeMode, .split)
     }
 
+    func testMatchOnMKANameDefaultsOnAndPersistsOff() {
+        XCTAssertTrue(AppSettings().matchOnMKAName)
+        let (fresh, _) = AppSettings.load(from: defaults, folderExists: { _ in true })
+        XCTAssertTrue(fresh.matchOnMKAName, "a missing key stays on")
+        var settings = AppSettings()
+        settings.matchOnMKAName = false
+        settings.save(to: defaults)
+        XCTAssertFalse(AppSettings.load(from: defaults, folderExists: { _ in true }).settings.matchOnMKAName)
+    }
+
     func testSummaryHasNoPaths() {
         var settings = AppSettings()
         settings.setFolder("/Users/secret/Rips", .split, .source)
         settings.chosenToolPath = "/Users/secret/mkvmerge"
         XCTAssertFalse(settings.summary.contains("secret"))
-        XCTAssertEqual(settings.summary, "mode Split, folders Split 1/2 Remux 0/3, mkvmerge chosen, notification on, Dock bounce on")
-        XCTAssertEqual(AppSettings.Key.all.count, 9)
+        XCTAssertEqual(settings.summary, "mode Split, folders Split 1/2 Remux 0/3, mkvmerge chosen, notification on, Dock bounce on, match on MKA name on")
+        XCTAssertEqual(AppSettings.Key.all.count, 10)
     }
 }
 

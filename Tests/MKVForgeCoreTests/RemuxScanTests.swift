@@ -158,6 +158,132 @@ final class RemuxScanTests: XCTestCase {
         XCTAssertFalse(FolderScanner.sameFolder("/a/b", "/a/B"))
     }
 
+    // MARK: Match on MKA Name (issue #33)
+
+    private func scanMatching(video videoFiles: [FileEntry], audio audioFiles: [FileEntry], probes: [String: MediaProbe] = [:], existing: Set<String> = []) async throws -> (ScanResult, FakeIdentifier) {
+        let identifier = FakeIdentifier(probes)
+        let lister = FakeLister(folders: [video: videoFiles, audio: audioFiles, out: []], existing: existing)
+        let result = try await F.scanner(lister, identifier).scanRemux(video: video, audio: audio, output: out, matchOnMKAName: true)
+        return (result, identifier)
+    }
+
+    func testXMkaWithTwoVideosIsAllAmbiguous() async throws {
+        let (result, _) = try await scanMatching(
+            video: [F.file("X.mkv"), F.file("X Extended.mkv")],
+            audio: [F.file("X.mka")],
+            probes: [
+                "/v/Video/X.mkv": F.media(.video),
+                "/v/Video/X Extended.mkv": F.media(.video),
+                "/v/Audio/X.mka": F.media(.audio, .subtitles),
+            ]
+        )
+        XCTAssertEqual(result.items.map(\.baseName), ["X Extended.mkv", "X.mka", "X.mkv"])
+        XCTAssertEqual(result.readyCount, 0)
+        XCTAssertTrue(result.items.allSatisfy { $0.matchMenu != nil && !$0.isReady && !$0.matchedByYou })
+        XCTAssertEqual(result.items.map(\.reasonText), ["Ambiguous match", "Ambiguous match", "Ambiguous match"])
+        XCTAssertEqual(result.item("X.mka")?.matchMenu?.candidates.map(\.fileName), ["X Extended.mkv", "X.mkv"])
+        XCTAssertEqual(result.item("X.mkv")?.matchMenu?.candidates.map(\.fileName), ["X.mka"])
+        XCTAssertEqual(result.item("X Extended.mkv")?.matchMenu?.side, .video)
+        XCTAssertEqual(result.item("X.mka")?.matchMenu?.side, .audio)
+    }
+
+    func testAlienPrefixMatchesCaseInsensitive() async throws {
+        let (result, _) = try await scanMatching(
+            video: [F.file("Aliens (1979).mkv")],
+            audio: [F.file("Alien.mka")],
+            probes: ["/v/Video/Aliens (1979).mkv": F.media(.video), "/v/Audio/Alien.mka": F.media(.audio, .subtitles)]
+        )
+        let item = try XCTUnwrap(result.item("Aliens (1979)"))
+        XCTAssertTrue(item.isReady)
+        XCTAssertFalse(item.matchedByYou)
+        XCTAssertNil(item.matchMenu)
+        XCTAssertEqual(item.outputPath, "/v/Finished/Aliens (1979).mkv")
+        XCTAssertEqual(item.counterpartName, "Alien.mka")
+        XCTAssertEqual(result.readyCount, 1)
+        XCTAssertEqual(result.items.count, 1)
+
+        let (cased, _) = try await scanMatching(
+            video: [F.file("ALIENS (1979).mkv")],
+            audio: [F.file("alien.mka")],
+            probes: ["/v/Video/ALIENS (1979).mkv": F.media(.video), "/v/Audio/alien.mka": F.media(.audio, .subtitles)]
+        )
+        let folded = try XCTUnwrap(cased.item("ALIENS (1979)"))
+        XCTAssertTrue(folded.isReady)
+        XCTAssertEqual(folded.outputPath, "/v/Finished/ALIENS (1979).mkv")
+        XCTAssertEqual(folded.counterpartName, "alien.mka")
+    }
+
+    func testCloseNamesDoNotMatch() async throws {
+        let cases = [
+            ("My Blue Heven (1990).mka", "My Blue Heaven (1990) CRF21.mkv"),
+            ("My.Blue.Heaven.1990.mka", "My Blue Heaven (1990) CRF21.mkv"),
+            ("My Blue  Heaven (1990).mka", "My Blue Heaven (1990) CRF21.mkv"),
+        ]
+        for (audioName, videoName) in cases {
+            let (result, identifier) = try await scanMatching(video: [F.file(videoName)], audio: [F.file(audioName)])
+            let videoStem = (videoName as NSString).deletingPathExtension
+            let audioStem = (audioName as NSString).deletingPathExtension
+            XCTAssertEqual(result.items.count, 2, audioName)
+            XCTAssertFalse(result.items.contains(where: \.isReady), audioName)
+            XCTAssertFalse(result.items.contains(where: \.matchedByYou), audioName)
+            XCTAssertEqual(result.item(videoStem)?.issues, [.noMatchingMKA], audioName)
+            XCTAssertEqual(result.item(audioStem)?.issues, [.noMatchingMKV], audioName)
+            XCTAssertEqual(result.item(videoStem)?.reasonText, "No matching .mka in Audio folder", audioName)
+            XCTAssertEqual(result.item(audioStem)?.reasonText, "No matching .mkv in Video folder", audioName)
+            let calls = await identifier.calls
+            XCTAssertTrue(calls.isEmpty, audioName)
+        }
+    }
+
+    func testPicksResetOnRescanFolderChangeAndSettingChange() async throws {
+        let probes = [
+            "/v/Video/X.mkv": F.media(.video),
+            "/v/Video/X Extended.mkv": F.media(.video),
+            "/v/Audio/X.mka": F.media(.audio, .subtitles),
+        ]
+        let files = (
+            video: [F.file("X.mkv"), F.file("X Extended.mkv")],
+            audio: [F.file("X.mka")]
+        )
+        let (result, _) = try await scanMatching(video: files.video, audio: files.audio, probes: probes)
+        let pick = RemuxPick(audioPath: "/v/Audio/X.mka", videoPath: "/v/Video/X Extended.mkv")
+
+        var state = ModeState(mode: .remux)
+        state.setFolder(video, for: .video)
+        state.setFolder(audio, for: .audio)
+        state.setFolder(out, for: .output)
+        state.applyScan(result)
+        XCTAssertEqual(state.applyMatchPicks([pick]), "X Extended")
+        XCTAssertEqual(state.picks, [pick])
+        XCTAssertTrue(state.row("X Extended")?.item.matchedByYou == true)
+        XCTAssertTrue(state.row("X Extended")?.isChecked == true)
+
+        let (again, _) = try await scanMatching(video: files.video, audio: files.audio, probes: probes)
+        state.applyScan(again)
+        XCTAssertTrue(state.picks.isEmpty)
+        XCTAssertFalse(state.rows.contains { $0.item.matchedByYou })
+        XCTAssertEqual(state.rows.filter { $0.item.matchMenu != nil }.count, 3)
+
+        state.applyMatchPicks([pick])
+        state.setFolder("/v/Other", for: .audio)
+        XCTAssertNil(state.scan)
+        XCTAssertTrue(state.rows.isEmpty)
+        XCTAssertTrue(state.picks.isEmpty)
+
+        state.setFolder(audio, for: .audio)
+        state.applyScan(again)
+        state.applyMatchPicks([pick])
+        state.matchSettingChanged()
+        XCTAssertNil(state.scan)
+        XCTAssertTrue(state.rows.isEmpty)
+        XCTAssertEqual(state.folder(.video), video, "a setting change keeps the folders")
+
+        var split = UIFixture.state([UIFixture.ready("A")])
+        split.matchSettingChanged()
+        XCTAssertNotNil(split.scan)
+        XCTAssertEqual(split.rows.map(\.id), ["A"])
+    }
+
     func testUnreadableAudioFolderThrows() async {
         let scanner = F.scanner(FakeLister(folders: [video: []]), FakeIdentifier())
         do {

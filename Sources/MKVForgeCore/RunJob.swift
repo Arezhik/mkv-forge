@@ -36,7 +36,7 @@ public struct RunJob: Identifiable, Equatable, Sendable {
     /// The checked rows that are Ready, in the scan's order (by name).
     public static func jobs(from scan: ScanResult, checked: Set<String>) -> [RunJob] {
         scan.items.compactMap { item -> RunJob? in
-            guard item.isReady, checked.contains(item.baseName),
+            guard item.isReady, checked.contains(item.rowID),
                   let source = item.sourcePath, let sourceInfo = item.sourceInfo else { return nil }
             if scan.mode == .remux && (item.mkaPath == nil || item.mkaInfo == nil) { return nil }
             return RunJob(

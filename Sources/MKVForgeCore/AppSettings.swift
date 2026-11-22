@@ -18,6 +18,10 @@ public struct AppSettings: Equatable, Sendable {
     public var chosenToolPath: String?
     public var notifyWhenFinished = true
     public var bounceWhenFinished = true
+    /// Remux only. On: pair each .mka with a video whose name starts with the .mka name.
+    /// Off: exact base-name matching. Default on (issue #33). Not saved until the user changes it,
+    /// so a fresh install stays on.
+    public var matchOnMKAName = true
 
     public init() {}
 
@@ -38,6 +42,7 @@ public struct AppSettings: Equatable, Sendable {
         public static let chosenToolPath = "mkvmergePath"
         public static let notify = "notifyWhenFinished"
         public static let bounce = "bounceWhenFinished"
+        public static let matchOnMKAName = "matchOnMKAName"
 
         public static func folder(_ mode: ScanMode, _ role: FolderRole) -> String {
             "folder.\(mode.rawValue).\(role.rawValue)"
@@ -45,7 +50,7 @@ public struct AppSettings: Equatable, Sendable {
 
         /// Every key this app writes.
         public static var all: [String] {
-            var keys = [activeMode, chosenToolPath, notify, bounce]
+            var keys = [activeMode, chosenToolPath, notify, bounce, matchOnMKAName]
             for mode in [ScanMode.split, .remux] {
                 for role in ModeState.roles(for: mode) { keys.append(folder(mode, role)) }
             }
@@ -78,6 +83,7 @@ public struct AppSettings: Equatable, Sendable {
         }
         if defaults.object(forKey: Key.notify) != nil { settings.notifyWhenFinished = defaults.bool(forKey: Key.notify) }
         if defaults.object(forKey: Key.bounce) != nil { settings.bounceWhenFinished = defaults.bool(forKey: Key.bounce) }
+        if defaults.object(forKey: Key.matchOnMKAName) != nil { settings.matchOnMKAName = defaults.bool(forKey: Key.matchOnMKAName) }
         for name in dropped {
             DebugLog.shared.record(.lifecycle, "Remembered \(name) folder is gone; shown as not chosen")
         }
@@ -95,6 +101,7 @@ public struct AppSettings: Equatable, Sendable {
         if let chosenToolPath { defaults.set(chosenToolPath, forKey: Key.chosenToolPath) } else { defaults.removeObject(forKey: Key.chosenToolPath) }
         defaults.set(notifyWhenFinished, forKey: Key.notify)
         defaults.set(bounceWhenFinished, forKey: Key.bounce)
+        defaults.set(matchOnMKAName, forKey: Key.matchOnMKAName)
     }
 
     public static func isFolder(_ path: String) -> Bool {
@@ -108,7 +115,8 @@ public struct AppSettings: Equatable, Sendable {
         let remux = ModeState.roles(for: .remux).filter { folder(.remux, $0) != nil }.count
         return "mode \(activeMode.displayName), folders Split \(split)/2 Remux \(remux)/3, "
             + "mkvmerge \(chosenToolPath == nil ? "automatic" : "chosen"), "
-            + "notification \(notifyWhenFinished ? "on" : "off"), Dock bounce \(bounceWhenFinished ? "on" : "off")"
+            + "notification \(notifyWhenFinished ? "on" : "off"), Dock bounce \(bounceWhenFinished ? "on" : "off"), "
+            + "match on MKA name \(matchOnMKAName ? "on" : "off")"
     }
 }
 

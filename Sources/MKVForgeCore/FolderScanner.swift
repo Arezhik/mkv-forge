@@ -2,7 +2,8 @@ import Foundation
 
 // Folder scans (docs/scaffold.md, Split, Remux, Validation / Scan Rules). Rules:
 // - Top level only. Hidden and `._` files, subfolders, and other extensions are skipped.
-// - Exact base-name matching. Remux rows are the union of the Video and Audio folders.
+// - Exact base-name matching, unless Remux is asked to match on the MKA name (issue #33).
+//   That path pairs a .mkv whose stem starts with the .mka stem and lives in `RemuxMatcher`.
 // - Cheap file checks run first (duplicate, orphan, empty, unreadable, still changing).
 //   A row with any of them isn't identified, so a half-copied file is never read.
 //   Remux skips the still-changing check for an .mka that is exactly an output of this
@@ -112,7 +113,11 @@ public struct FolderScanner: Sendable {
     // MARK: Remux
 
     /// `fresh`: the outputs of this session's recent Split batches (see `FreshOutputs`).
-    public func scanRemux(video: String, audio: String, output: String, fresh: FreshOutputs = FreshOutputs(), progress: (@Sendable (ScanProgress) -> Void)? = nil) async throws -> ScanResult {
+    /// `matchOnMKAName`: prefix pairing (issue #33). Off keeps exact base-name matching.
+    public func scanRemux(video: String, audio: String, output: String, fresh: FreshOutputs = FreshOutputs(), matchOnMKAName: Bool = false, progress: (@Sendable (ScanProgress) -> Void)? = nil) async throws -> ScanResult {
+        if matchOnMKAName {
+            return try await scanRemuxMatching(video: video, audio: audio, output: output, fresh: fresh, progress: progress)
+        }
         let scannedAt = now()
         DebugLog.shared.record(.queue, "Scan Remux started")
         var reporter = ScanProgressReporter(report: progress, interval: progressInterval)
@@ -219,6 +224,77 @@ public struct FolderScanner: Sendable {
         return result
     }
 
+    /// Match on MKA Name (issue #33). Lists every file, identifies the ones a pair or an
+    /// ambiguous row might use, and stores the inventory so a later pick doesn't rescan.
+    private func scanRemuxMatching(video: String, audio: String, output: String, fresh: FreshOutputs, progress: (@Sendable (ScanProgress) -> Void)?) async throws -> ScanResult {
+        let scannedAt = now()
+        DebugLog.shared.record(.queue, "Scan Remux started")
+        var reporter = ScanProgressReporter(report: progress, interval: progressInterval)
+        reporter.listing()
+        let videoGroups = ScanFilter.byBaseName(ScanFilter.candidates(try list(video, .video), fileExtension: "mkv"))
+        let audioGroups = ScanFilter.byBaseName(ScanFilter.candidates(try list(audio, .audio), fileExtension: "mka"))
+        try Task.checkCancellation()
+        let outputIsVideoFolder = Self.sameFolder(video, output)
+
+        var ownOutputs = 0
+        let videos = listedFiles(videoGroups, folder: video, role: .video, fresh: fresh, scannedAt: scannedAt, ownOutputs: &ownOutputs)
+        let audios = listedFiles(audioGroups, folder: audio, role: .audio, fresh: fresh, scannedAt: scannedAt, ownOutputs: &ownOutputs)
+        if ownOutputs > 0 {
+            DebugLog.shared.record(.queue, "Scan Remux: \(ownOutputs) .mka just written by Split, not checked for still changing")
+        }
+
+        var existing: Set<String> = []
+        if !outputIsVideoFolder {
+            let stems = Set(videos.map(\.stem)).union(audios.map(\.stem))
+            for stem in stems {
+                let name = stem + ".mkv"
+                if lister.fileExists(atPath: Self.join(output, name)) { existing.insert(name) }
+            }
+        }
+        let inventory = RemuxInventory(
+            videos: videos, audios: audios, outputFolder: output,
+            outputIsVideoFolder: outputIsVideoFolder, existingOutputNames: existing
+        )
+        let paths = Array(Set(RemuxMatcher.probePaths(inventory: inventory))).sorted()
+        let rowCount = RemuxMatcher.items(inventory: inventory, picks: []).items.count
+        if rowCount > 0 {
+            let finished = paths.isEmpty ? rowCount : max(0, rowCount - paths.count)
+            reporter.start(total: rowCount, finished: finished)
+        }
+        var keyed: [String: String] = [:]
+        for path in paths { keyed[path] = path }
+        let probes = try await probeAll(keyed) { _ in reporter.finish() }
+        let probed = inventory.withProbes(probes)
+        let evaluated = RemuxMatcher.items(inventory: probed, picks: [])
+        let result = ScanResult(mode: .remux, scannedAt: scannedAt, items: evaluated.items, inventory: probed, picks: evaluated.picks)
+        DebugLog.shared.record(.queue, "Scan Remux finished: \(result.nameCount) names, \(result.pairCount) pairs, \(result.flaggedCount) flagged")
+        return result
+    }
+
+    /// One listed file per exact base name. A stem with several files is one duplicate group.
+    private func listedFiles(_ groups: [String: [FileEntry]], folder: String, role: FolderRole, fresh: FreshOutputs, scannedAt: Date, ownOutputs: inout Int) -> [RemuxListedFile] {
+        var files: [RemuxListedFile] = []
+        for (stem, entries) in groups {
+            if entries.count > 1 {
+                let first = entries[0]
+                files.append(RemuxListedFile(
+                    name: first.name, path: Self.join(folder, first.name), stem: stem, role: role,
+                    cheapIssues: [], duplicateFileNames: entries.map(\.name)
+                ))
+            } else {
+                let entry = entries[0]
+                let path = Self.join(folder, entry.name)
+                let settled = role == .audio && fresh.isOwnOutput(path, entry, at: scannedAt)
+                if settled { ownOutputs += 1 }
+                files.append(RemuxListedFile(
+                    name: entry.name, path: path, stem: stem, role: role,
+                    cheapIssues: cheapIssues(entry, role: role, scannedAt: scannedAt, settled: settled)
+                ))
+            }
+        }
+        return files
+    }
+
     // MARK: Shared
 
     private func list(_ folder: String, _ role: FolderRole) throws -> [FileEntry] {
@@ -251,6 +327,7 @@ public struct FolderScanner: Sendable {
     /// so every other problem shows in the same scan.
     static func blocksProbe(_ issue: ScanIssue) -> Bool {
         if case .outputExists = issue { return false }
+        if case .outputAlreadyExists = issue { return false }
         if case .outputIsVideoFolder = issue { return false }
         return true
     }
