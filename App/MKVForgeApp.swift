@@ -18,6 +18,7 @@ struct MKVForgeApp: App {
         Window("MKVForge", id: "main") {
             ContentView()
                 .environmentObject(appDelegate.model)
+                .defaultAppStorage(UITestingLaunch.defaults)
         }
         .defaultSize(width: 980, height: 640)
         .windowResizability(.contentMinSize)
@@ -28,6 +29,7 @@ struct MKVForgeApp: App {
         Settings {
             SettingsView()
                 .environmentObject(appDelegate.model)
+                .defaultAppStorage(UITestingLaunch.defaults)
         }
         .windowResizability(.contentSize)
     }
