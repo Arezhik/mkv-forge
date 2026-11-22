@@ -97,6 +97,7 @@ private struct ModePicker: View {
         .disabled(!model.enablement.modeSwitch)
         .help(model.enablement.modeSwitch ? "" : Workflow.busyHelp)
         .accessibilityLabel("Mode")
+        .accessibilityIdentifier("modePicker")
     }
 
     private var modeBinding: Binding<ScanMode> {
@@ -432,6 +433,7 @@ private struct NameCell: View {
         }
         .help(display.nameHelp)
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("queueRow")
         .accessibilityLabel(display.accessibilityLabel)
     }
 }
