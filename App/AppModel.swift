@@ -42,6 +42,7 @@ final class AppModel: ObservableObject {
 
     let commands = CommandState()
     private(set) weak var mainWindow: NSWindow?
+    private let defaults: UserDefaults
 
     private var scanTask: Task<Void, Never>?
     private var runTask: Task<Void, Never>?
@@ -56,9 +57,10 @@ final class AppModel: ObservableObject {
     /// `applicationShouldTerminate` returned `.terminateLater` and still needs a reply.
     private var awaitingTerminateReply = false
 
-    init() {
+    init(defaults: UserDefaults = UITestingLaunch.defaults) {
+        self.defaults = defaults
         DebugLog.shared.configure(directory: DebugLog.libraryLogsDirectory, mirror: { AppLog.write($0) })
-        let loaded = AppSettings.load(from: .standard)
+        let loaded = AppSettings.load(from: defaults)
         settings = loaded.settings
         activeMode = loaded.settings.activeMode
         split = ModeState(mode: .split, folders: loaded.settings.folders[.split] ?? [:])
@@ -68,6 +70,7 @@ final class AppModel: ObservableObject {
         installEscapeMonitor()
         refreshNotificationStatus()
         refreshCommands()
+        applyUITestingFolders()
     }
 
     // MARK: Derived state
@@ -107,7 +110,7 @@ final class AppModel: ObservableObject {
         modeSwitchCount += 1
         activeMode = mode
         settings.activeMode = mode
-        settings.save(to: .standard)
+        settings.save(to: defaults)
         DebugLog.shared.record(.queue, "Mode \(mode.displayName)")
     }
 
@@ -143,8 +146,23 @@ final class AppModel: ObservableObject {
         mutate(mode) { $0.setFolder(path, for: role) }
         scanErrors[mode] = nil
         settings.setFolder(path, mode, role)
-        settings.save(to: .standard)
+        settings.save(to: defaults)
         DebugLog.shared.record(.queue, "Chose the \(mode.displayName) \(role.displayName) folder")
+    }
+
+    /// `--uitesting` only. Seed folders from `UITEST_*` as if they were chosen
+    /// in the Choose… panels. Does not start a scan, and does not write
+    /// security-scoped bookmarks.
+    private func applyUITestingFolders() {
+        let seed = UITestingLaunch.folderSeed()
+        guard !seed.isEmpty else { return }
+        if let path = seed[.source] { setFolder(path, role: .source, mode: .split) }
+        if let path = seed[.output] {
+            setFolder(path, role: .output, mode: .split)
+            setFolder(path, role: .output, mode: .remux)
+        }
+        if let path = seed[.video] { setFolder(path, role: .video, mode: .remux) }
+        if let path = seed[.audio] { setFolder(path, role: .audio, mode: .remux) }
     }
 
     // MARK: Scan (G2)
@@ -405,7 +423,7 @@ final class AppModel: ObservableObject {
 
     private func setChosenTool(_ path: String?) {
         settings.chosenToolPath = path
-        settings.save(to: .standard)
+        settings.save(to: defaults)
         DebugLog.shared.record(.tool, path == nil ? "mkvmerge: back to the automatic search" : "mkvmerge: a copy was chosen in Settings")
         toolStatus = .checking
         detectTool()
@@ -420,7 +438,7 @@ final class AppModel: ObservableObject {
     func setNotify(_ on: Bool) {
         guard on != settings.notifyWhenFinished else { return }
         settings.notifyWhenFinished = on
-        settings.save(to: .standard)
+        settings.save(to: defaults)
         DebugLog.shared.record(.lifecycle, "Notification when finished \(on ? "on" : "off")")
         refreshNotificationStatus()
     }
@@ -428,7 +446,7 @@ final class AppModel: ObservableObject {
     func setBounce(_ on: Bool) {
         guard on != settings.bounceWhenFinished else { return }
         settings.bounceWhenFinished = on
-        settings.save(to: .standard)
+        settings.save(to: defaults)
         DebugLog.shared.record(.lifecycle, "Dock bounce when finished \(on ? "on" : "off")")
     }
 

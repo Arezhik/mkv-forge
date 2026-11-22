@@ -265,6 +265,7 @@ private struct FolderField: View {
             .disabled(path == nil || !menuEnabled)
         }
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("\(role.rawValue)Folder")
         .accessibilityLabel(FolderDisplay.accessibilityLabel(role, path: path, home: NSHomeDirectory()))
     }
 }

@@ -11,6 +11,7 @@
 		0FF692178EF37677938D4692 /* MKVForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8576A8C62853B512A8BB65F /* MKVForgeApp.swift */; };
 		2861D173FAB86B1C3FAD7581 /* WindowEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447CFD14FB3908E89E386E9 /* WindowEvents.swift */; };
 		364FFB5C9E16978FCA1A9534 /* DebugLogSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D576B60D15BB3A9F84A8579 /* DebugLogSupport.swift */; };
+		5189B8FFD6B78C6F43970474 /* UITestingLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */; };
 		61BE4562897AAC7D7FB61A9F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732DB57213FB70CB4DBF41FC /* AppDelegate.swift */; };
 		8DE5A9F0C3215EE3970AF053 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2696D2594905DBACDA07FB03 /* AppModel.swift */; };
 		9D3EC5453A7A6E609E581A56 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27FDD737995B92AF6CF52518 /* SettingsView.swift */; };
@@ -40,6 +41,7 @@
 		732DB57213FB70CB4DBF41FC /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A8576A8C62853B512A8BB65F /* MKVForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MKVForgeApp.swift; sourceTree = "<group>"; };
 		BB08216AEF3E32F3EDDFEDBD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestingLaunch.swift; sourceTree = "<group>"; };
 		DA3C4B98FB3BE0BDBABCAF61 /* mkv-forge */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "mkv-forge"; path = ..; sourceTree = SOURCE_ROOT; };
 		F447CFD14FB3908E89E386E9 /* WindowEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowEvents.swift; sourceTree = "<group>"; };
 		F8B031BB11CC580C1C724420 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -103,6 +105,7 @@
 				BB08216AEF3E32F3EDDFEDBD /* Info.plist */,
 				A8576A8C62853B512A8BB65F /* MKVForgeApp.swift */,
 				27FDD737995B92AF6CF52518 /* SettingsView.swift */,
+				C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */,
 				F447CFD14FB3908E89E386E9 /* WindowEvents.swift */,
 			);
 			name = App;
@@ -221,6 +224,7 @@
 				364FFB5C9E16978FCA1A9534 /* DebugLogSupport.swift in Sources */,
 				0FF692178EF37677938D4692 /* MKVForgeApp.swift in Sources */,
 				9D3EC5453A7A6E609E581A56 /* SettingsView.swift in Sources */,
+				5189B8FFD6B78C6F43970474 /* UITestingLaunch.swift in Sources */,
 				2861D173FAB86B1C3FAD7581 /* WindowEvents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
