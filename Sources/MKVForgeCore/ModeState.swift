@@ -14,7 +14,7 @@ import Foundation
 
 /// One queue row: a scan item plus its checkbox and run status.
 public struct QueueRow: Identifiable, Equatable, Sendable {
-    public var id: String { item.baseName }
+    public var id: String { item.rowID }
     public let item: ScanItem
     public var isChecked: Bool
     /// Nil until the row is part of a run: it shows its scan state (Ready or Issue).
@@ -77,22 +77,69 @@ public struct ModeState: Equatable, Sendable {
     public var checkedCount: Int { rows.filter(\.isChecked).count }
     public var flaggedCount: Int { rows.filter(\.isFlagged).count }
     public var checkedIDs: Set<String> { Set(rows.filter(\.isChecked).map(\.id)) }
+    /// True when a Remux row is still waiting on Choose Match (v2.2 §B.7).
+    public var hasAmbiguousMatch: Bool { rows.contains { $0.item.matchMenu != nil } }
+    /// Picks on the current Remux scan. Empty when matching is off or nothing is scanned.
+    public var picks: [RemuxPick] { scan?.picks ?? [] }
 
     public func row(_ id: String) -> QueueRow? { rows.first { $0.id == id } }
 
     // MARK: Scan
 
     /// Replaces the queue with a finished scan in one step (v2 §3, v2.1 §2.4).
+    /// Match picks are whatever the new result carries, which is none: a scan drops them (v2.2 §B.5).
     public mutating func applyScan(_ result: ScanResult) {
-        let previouslyReady = Set(rows.filter { !$0.isFlagged }.map(\.id))
-        let uncheckedReady = Set(rows.filter { !$0.isFlagged && !$0.isChecked }.map(\.id))
+        replaceRows(with: result, resetSummary: true, preserveRunState: false)
+    }
+
+    /// Drops the scan, the queue, any match picks and the last summary. Folders stay.
+    public mutating func clearScan() {
+        scan = nil
+        rows = []
+        lastSummary = nil
+    }
+
+    /// A Match on MKA Name change (v2.2 §A.3). Remux drops its queue. Split is left alone.
+    public mutating func matchSettingChanged() {
+        guard mode == .remux else { return }
+        clearScan()
+    }
+
+    /// Re-scores the current Remux scan with these picks. Returns the row id of the last
+    /// pick that locked a pair, so the queue can select it. No-op without a matching inventory.
+    @discardableResult
+    public mutating func applyMatchPicks(_ picks: [RemuxPick]) -> String? {
+        guard let current = scan, let inventory = current.inventory, mode == .remux else { return nil }
+        let evaluated = RemuxMatcher.items(inventory: inventory, picks: picks)
+        let result = ScanResult(mode: .remux, scannedAt: current.scannedAt, items: evaluated.items, inventory: inventory, picks: evaluated.picks)
+        replaceRows(with: result, resetSummary: false, preserveRunState: true)
+        guard let focus = evaluated.picks.last else { return nil }
+        return rows.first { $0.item.sourcePath == focus.videoPath && $0.item.mkaPath == focus.audioPath }?.id
+    }
+
+    private mutating func replaceRows(with result: ScanResult, resetSummary: Bool, preserveRunState: Bool) {
+        let previous = rows
+        let previouslyReady = Set(previous.filter { !$0.isFlagged }.map(\.id))
+        let uncheckedReady = Set(previous.filter { !$0.isFlagged && !$0.isChecked }.map(\.id))
+        let oldByID = Dictionary(previous.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         rows = result.items.map { item in
-            guard item.isReady else { return QueueRow(item: item, isChecked: false) }
-            let keepsUnchecked = previouslyReady.contains(item.baseName) && uncheckedReady.contains(item.baseName)
-            return QueueRow(item: item, isChecked: !keepsUnchecked)
+            let checked: Bool
+            if item.isReady {
+                let keepsUnchecked = previouslyReady.contains(item.rowID) && uncheckedReady.contains(item.rowID)
+                checked = !keepsUnchecked
+            } else {
+                checked = false
+            }
+            var row = QueueRow(item: item, isChecked: checked)
+            if preserveRunState, let old = oldByID[item.rowID],
+               old.item.sourcePath == item.sourcePath, old.item.mkaPath == item.mkaPath {
+                row.runStatus = old.runStatus
+                row.wontStart = old.wontStart
+            }
+            return row
         }
         scan = result
-        lastSummary = nil
+        if resetSummary { lastSummary = nil }
     }
 
     // MARK: Checkboxes

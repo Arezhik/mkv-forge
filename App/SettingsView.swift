@@ -66,6 +66,34 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Remux") {
+                let locked = model.remuxMatchLocked
+                Toggle(isOn: matchBinding) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(MatchOnMKAName.label)
+                        Text(MatchOnMKAName.helpLine1)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        Text(MatchOnMKAName.helpLine2)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        if locked {
+                            Text(MatchOnMKAName.disabledHelp)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(locked)
+                .accessibilityLabel(MatchOnMKAName.label)
+                .accessibilityHint(locked ? MatchOnMKAName.disabledHelp : "\(MatchOnMKAName.helpLine1) \(MatchOnMKAName.helpLine2)")
+            }
+
             Section("When a batch finishes") {
                 Toggle(isOn: notifyBinding) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -128,6 +156,13 @@ struct SettingsView: View {
         Binding(
             get: { [model] in model.settings.bounceWhenFinished },
             set: { [model] value in Task { @MainActor in model.setBounce(value) } }
+        )
+    }
+
+    private var matchBinding: Binding<Bool> {
+        Binding(
+            get: { [model] in model.settings.matchOnMKAName },
+            set: { [model] value in Task { @MainActor in model.setMatchOnMKAName(value) } }
         )
     }
 }

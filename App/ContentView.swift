@@ -17,6 +17,7 @@ struct ContentView: View {
     // separate AppKit views that don't reliably inherit it (docs/LESSONS.md L31).
     @EnvironmentObject private var model: AppModel
     @State private var selected = TableSelection()
+    @AccessibilityFocusState private var focusedRow: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +28,7 @@ struct ContentView: View {
             }
             FolderPanel(model: model)
             Divider()
-            QueueTable(model: model, selection: selection)
+            QueueTable(model: model, selection: selection, focusedRow: $focusedRow)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             BottomBar(model: model)
@@ -50,6 +51,13 @@ struct ContentView: View {
         .onChange(of: model.toolStatus.showsBanner) { _, shows in
             // The banner is announced once when it appears (v2 §11).
             if shows { model.announce(StatusLines.toolMissingBanner) }
+        }
+        .onChange(of: model.matchFocusRowID) { _, id in
+            // A pick selects the new pair and moves focus to its checkbox (v2.2 §B.3).
+            guard let id else { return }
+            selected = TableSelection(visit: model.modeSwitchCount, ids: [id])
+            focusedRow = id
+            Task { @MainActor in model.clearMatchFocus() }
         }
     }
 
@@ -89,6 +97,7 @@ private struct ModePicker: View {
         .disabled(!model.enablement.modeSwitch)
         .help(model.enablement.modeSwitch ? "" : Workflow.busyHelp)
         .accessibilityLabel("Mode")
+        .accessibilityIdentifier("modePicker")
     }
 
     private var modeBinding: Binding<ScanMode> {
@@ -316,6 +325,7 @@ private struct ScanRow: View {
 private struct QueueTable: View {
     @ObservedObject var model: AppModel
     @Binding var selection: Set<String>
+    var focusedRow: AccessibilityFocusState<String?>.Binding
 
     var body: some View {
         let state = model.current
@@ -325,7 +335,7 @@ private struct QueueTable: View {
         let rescanning = model.workflow.activity.isScanning && !state.rows.isEmpty
         Table(state.rows, selection: $selection) {
             TableColumn("") { (row: QueueRow) in
-                CheckboxCell(model: model, row: row, display: RowDisplay(row, mode: mode, locked: locked))
+                CheckboxCell(model: model, row: row, display: RowDisplay(row, mode: mode, locked: locked), focusedRow: focusedRow)
             }
             .width(28)
             TableColumn("Name") { (row: QueueRow) in
@@ -337,7 +347,7 @@ private struct QueueTable: View {
             }
             .width(min: 140, ideal: 160, max: 200)
             TableColumn("Reason") { (row: QueueRow) in
-                ReasonCell(display: RowDisplay(row, mode: mode, locked: locked))
+                ReasonCell(model: model, row: row, display: RowDisplay(row, mode: mode, locked: locked), locked: locked)
             }
             .width(min: 220)
         }
@@ -370,6 +380,7 @@ private struct CheckboxCell: View {
     let model: AppModel
     let row: QueueRow
     let display: RowDisplay
+    var focusedRow: AccessibilityFocusState<String?>.Binding
 
     var body: some View {
         if row.isFlagged {
@@ -387,6 +398,7 @@ private struct CheckboxCell: View {
             .help(display.checkboxHelp ?? "")
             .accessibilityLabel(display.checkboxLabel)
             .accessibilityHint(display.checkboxHelp ?? "")
+            .accessibilityFocused(focusedRow, equals: row.id)
     }
 
     private var checkedBinding: Binding<Bool> {
@@ -403,12 +415,26 @@ private struct NameCell: View {
     let display: RowDisplay
 
     var body: some View {
-        Text(display.name)
-            .font(.system(size: 13))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .help(display.nameHelp)
-            .accessibilityLabel(display.accessibilityLabel)
+        HStack(spacing: 6) {
+            Text(display.name)
+                .font(.system(size: 13))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
+            if let counterpart = display.counterpart {
+                Text("↔ \(counterpart)")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(0)
+                    .accessibilityHidden(true)
+            }
+        }
+        .help(display.nameHelp)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("queueRow")
+        .accessibilityLabel(display.accessibilityLabel)
     }
 }
 
@@ -433,14 +459,50 @@ private struct StatusCell: View {
 }
 
 private struct ReasonCell: View {
+    // A plain `let`: the cell is rebuilt when the row changes. Actions hop to the next turn (L10).
+    let model: AppModel
+    let row: QueueRow
     let display: RowDisplay
+    let locked: Bool
 
     var body: some View {
-        Text(display.reason)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .help(display.reasonHelp ?? "")
+        HStack(spacing: 8) {
+            Text(display.reason)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(-1)
+                .help(display.reasonHelp ?? "")
+            if let menu = display.matchMenu {
+                Menu("Choose Match") {
+                    Section(menu.sectionTitle) {
+                        ForEach(menu.candidates) { candidate in
+                            Button(candidate.fileName) {
+                                let rowID = row.id
+                                let path = candidate.path
+                                Task { @MainActor in model.chooseMatch(rowID: rowID, candidatePath: path) }
+                            }
+                        }
+                    }
+                }
+                .menuStyle(.button)
+                .controlSize(.small)
+                .fixedSize()
+                .disabled(locked)
+                .accessibilityLabel(MatchOnMKAName.chooseMatchLabel(fileName: menu.fileName))
+                .accessibilityHint(MatchOnMKAName.chooseMatchHint)
+            }
+            if display.showsUnmatch {
+                Button("Unmatch") {
+                    let rowID = row.id
+                    Task { @MainActor in model.unmatch(rowID: rowID) }
+                }
+                .buttonStyle(.link)
+                .controlSize(.small)
+                .disabled(locked)
+                .accessibilityLabel(display.unmatchLabel)
+            }
+        }
     }
 }
 

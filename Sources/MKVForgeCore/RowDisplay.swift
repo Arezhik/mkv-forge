@@ -39,11 +39,23 @@ public struct RowDisplay: Equatable, Sendable {
     public var spinnerLabel: String?
     /// True for Done rows: their context menu has Show in Finder.
     public var outputPath: String?
+    /// `.mka` file name shown after the video name (`↔ K.mka`) when the stems differ.
+    public var counterpart: String?
+    /// Choose Match, on an Ambiguous match row that isn't running.
+    public var matchMenu: RemuxMatchMenu?
+    /// Unmatch, on a Ready row the user paired.
+    public var showsUnmatch: Bool
+    /// `Unmatch X Extended from X.mka`. Empty when `showsUnmatch` is false.
+    public var unmatchLabel: String
 
     /// `locked` is true while scanning, running or cancelling (checkboxes disabled).
     public init(_ row: QueueRow, mode: ScanMode, locked: Bool) {
         name = row.baseName
-        nameHelp = row.item.sourcePath.map { ($0 as NSString).lastPathComponent } ?? row.baseName
+        nameHelp = row.item.pairNameHelp ?? row.item.sourcePath.map { ($0 as NSString).lastPathComponent } ?? row.baseName
+        counterpart = nil
+        matchMenu = nil
+        showsUnmatch = false
+        unmatchLabel = ""
         showsSpinner = false
         spinnerLabel = nil
         outputPath = nil
@@ -117,6 +129,19 @@ public struct RowDisplay: Equatable, Sendable {
             accessibilityLabel = "\(row.baseName), \(status), \(reasonText)"
         } else {
             accessibilityLabel = "\(row.baseName), \(status)"
+        }
+        // Match controls only while the row is still showing its scan result (v2.2 §B).
+        if row.runStatus == nil {
+            counterpart = row.item.counterpartName
+            if let menu = row.item.matchMenu {
+                matchMenu = menu
+                accessibilityLabel = menu.rowAccessibilityLabel
+            } else if row.item.matchedByYou {
+                let audio = row.item.mkaPath.map { ($0 as NSString).lastPathComponent } ?? ""
+                showsUnmatch = true
+                unmatchLabel = MatchOnMKAName.unmatchLabel(videoName: row.baseName, audioFileName: audio)
+                accessibilityLabel = "\(row.baseName) paired with \(audio), Ready, matched by you"
+            }
         }
     }
 }
