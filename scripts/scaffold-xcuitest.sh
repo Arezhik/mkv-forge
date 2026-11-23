@@ -49,7 +49,8 @@ final class ${FLOW}UITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES", "--uitesting"]
+        // Do not add -ApplePersistenceIgnoreState YES: it combines with --uitesting to suppress the main Window.
+        app.launchArguments += ["--uitesting"]
         app.launch()
     }
 
