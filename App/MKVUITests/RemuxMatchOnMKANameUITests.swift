@@ -35,7 +35,8 @@ final class RemuxMatchOnMKANameUITests: XCTestCase {
         let unmatchedStem = (Self.unmatchedFileName as NSString).deletingPathExtension
 
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting", "-ApplePersistenceIgnoreState", "YES"]
+        // Do not add -ApplePersistenceIgnoreState YES: it combines with --uitesting to suppress the main Window.
+        app.launchArguments = ["--uitesting"]
         app.launchEnvironment = [
             "UITEST_VIDEO_DIR": fixtures.video.path,
             "UITEST_AUDIO_DIR": fixtures.audio.path,
