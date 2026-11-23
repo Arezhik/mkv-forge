@@ -14,6 +14,35 @@ import MKVForgeCore
 // - Quitting never holds `.terminateLater` across a file (v2.1 §1.4).
 // - Menus read `CommandState`, which publishes only when a flag changes (L9, L11).
 
+/// Undo target for Remux match picks. The window's undo manager retains it per action
+/// and calls back on the main thread; the model hop uses `MainActor.assumeIsolated`.
+private final class MatchUndoHub: NSObject {
+    nonisolated(unsafe) weak var model: AppModel?
+
+    @objc func undoMatch(_ token: Any?) {
+        let text = token as? String ?? ""
+        let picks = MatchPickCodec.decode(text)
+        let model = self.model
+        MainActor.assumeIsolated {
+            model?.restoreMatchPicks(picks)
+        }
+    }
+}
+
+private enum MatchPickCodec {
+    static func encode(_ picks: [RemuxPick]) -> String {
+        guard let data = try? JSONEncoder().encode(picks),
+              let text = String(data: data, encoding: .utf8) else { return "[]" }
+        return text
+    }
+
+    static func decode(_ text: String) -> [RemuxPick] {
+        guard let data = text.data(using: .utf8),
+              let picks = try? JSONDecoder().decode([RemuxPick].self, from: data) else { return [] }
+        return picks
+    }
+}
+
 /// What the menus read. Published only when a value changes (L9).
 @MainActor
 final class CommandState: ObservableObject {
@@ -56,9 +85,12 @@ final class AppModel: ObservableObject {
     private var terminating = false
     /// `applicationShouldTerminate` returned `.terminateLater` and still needs a reply.
     private var awaitingTerminateReply = false
+    /// Undo target for Choose Match / Unmatch. The window's undo manager retains it.
+    private let matchUndo = MatchUndoHub()
 
     init(defaults: UserDefaults = UITestingLaunch.defaults) {
         self.defaults = defaults
+        matchUndo.model = self
         DebugLog.shared.configure(directory: DebugLog.libraryLogsDirectory, mirror: { AppLog.write($0) })
         let loaded = AppSettings.load(from: defaults)
         settings = loaded.settings
@@ -78,6 +110,22 @@ final class AppModel: ObservableObject {
     var current: ModeState { state(for: activeMode) }
     var toolUsable: Bool { toolStatus.isUsable }
     var enablement: Enablement { workflow.enablement(current, toolUsable: toolUsable) }
+
+    /// The Match on MKA Name switch is off while a Remux scan or Remux batch is in progress.
+    var remuxMatchLocked: Bool {
+        let working: ScanMode?
+        if workflow.activity.isBatch {
+            working = workflow.batch?.mode
+        } else if workflow.activity.isScanning {
+            working = activeMode
+        } else {
+            working = nil
+        }
+        return RemuxMatchLock.isLocked(activity: workflow.activity, workingMode: working)
+    }
+
+    /// Set after a pick so the queue selects that pair and focuses its checkbox. Cleared by the view.
+    @Published private(set) var matchFocusRowID: String?
 
     func state(for mode: ScanMode) -> ModeState {
         mode == .split ? split : remux
@@ -143,7 +191,9 @@ final class AppModel: ObservableObject {
 
     private func setFolder(_ path: String, role: FolderRole, mode: ScanMode) {
         guard !workflow.activity.isBusy else { return }
+        let hadScan = state(for: mode).scan != nil
         mutate(mode) { $0.setFolder(path, for: role) }
+        if mode == .remux && hadScan && state(for: mode).scan == nil { clearMatchUndo() }
         scanErrors[mode] = nil
         settings.setFolder(path, mode, role)
         settings.save(to: defaults)
@@ -184,6 +234,7 @@ final class AppModel: ObservableObject {
         let scanner = FolderScanner(identifier: MKVMergeIdentifier(executable: tool))
         freshOutputs.prune(now: Date())
         let fresh = freshOutputs
+        let matchOnMKAName = settings.matchOnMKAName
         let (progress, progressInput) = AsyncStream<ScanProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
         let pump = Task { [weak self] in
             for await update in progress {
@@ -198,7 +249,7 @@ final class AppModel: ObservableObject {
                 case .split:
                     result = try await scanner.scanSplit(source: folders[0], output: folders[1], progress: report)
                 case .remux:
-                    result = try await scanner.scanRemux(video: folders[0], audio: folders[1], output: folders[2], fresh: fresh, progress: report)
+                    result = try await scanner.scanRemux(video: folders[0], audio: folders[1], output: folders[2], fresh: fresh, matchOnMKAName: matchOnMKAName, progress: report)
                 }
                 progressInput.finish()
                 pump.cancel()
@@ -226,6 +277,7 @@ final class AppModel: ObservableObject {
         scanTask = nil
         // One assignment: the new rows replace the old ones in one step (v2.1 §2.4).
         mutate(mode) { $0.applyScan(result) }
+        if mode == .remux { clearMatchUndo() }
         workflow.scanEnded()
         DebugLog.shared.record(.queue, "Scan \(mode.displayName) finished: \(result.nameCount) names, \(result.readyCount) ready, \(result.flaggedCount) flagged")
         announce(ScanCaption.finishedAnnouncement(result))
@@ -448,6 +500,82 @@ final class AppModel: ObservableObject {
         settings.bounceWhenFinished = on
         settings.save(to: defaults)
         DebugLog.shared.record(.lifecycle, "Dock bounce when finished \(on ? "on" : "off")")
+    }
+
+    /// Match on MKA Name (v2.2 §A). Changing it drops the Remux queue back to not scanned.
+    func setMatchOnMKAName(_ on: Bool) {
+        guard !remuxMatchLocked, on != settings.matchOnMKAName else { return }
+        settings.matchOnMKAName = on
+        settings.save(to: .standard)
+        mutate(.remux) { $0.matchSettingChanged() }
+        scanErrors[.remux] = nil
+        clearMatchUndo()
+        DebugLog.shared.record(.lifecycle, "Match on MKA Name \(on ? "on" : "off")")
+        if activeMode == .remux { announce(MatchOnMKAName.clearedAnnouncement) }
+    }
+
+    // MARK: Choose Match (v2.2 §B)
+
+    func clearMatchFocus() { matchFocusRowID = nil }
+
+    /// Pairs an Ambiguous match row with one candidate. One undo step named Match.
+    func chooseMatch(rowID: String, candidatePath: String) {
+        guard activeMode == .remux, enablement.checkboxes else { return }
+        guard let row = remux.row(rowID), let menu = row.item.matchMenu else { return }
+        guard menu.candidates.contains(where: { $0.path == candidatePath }) else { return }
+        let pick: RemuxPick
+        switch menu.side {
+        case .audio:
+            guard let audioPath = row.item.mkaPath else { return }
+            pick = RemuxPick(audioPath: audioPath, videoPath: candidatePath)
+        case .video:
+            guard let videoPath = row.item.sourcePath else { return }
+            pick = RemuxPick(audioPath: candidatePath, videoPath: videoPath)
+        }
+        let previous = remux.picks
+        registerMatchUndo(picks: previous)
+        let focus = applyPicks(previous + [pick])
+        DebugLog.shared.record(.queue, "Remux match choice changed")
+        guard let focus else { return }
+        matchFocusRowID = focus
+        let audio = (pick.audioPath as NSString).lastPathComponent
+        let video = (pick.videoPath as NSString).lastPathComponent
+        announce(MatchOnMKAName.pairedAnnouncement(audioFileName: audio, videoFileName: video))
+    }
+
+    /// Splits a pair the user picked and scores the group again. One undo step named Match.
+    func unmatch(rowID: String) {
+        guard activeMode == .remux, enablement.checkboxes else { return }
+        guard let row = remux.row(rowID), row.item.matchedByYou,
+              let audio = row.item.mkaPath, let video = row.item.sourcePath else { return }
+        let previous = remux.picks
+        registerMatchUndo(picks: previous)
+        _ = applyPicks(previous.filter { $0 != RemuxPick(audioPath: audio, videoPath: video) })
+        DebugLog.shared.record(.queue, "Remux match choice changed")
+    }
+
+    /// Undo or redo of a match. Registers the inverse on the same undo stack.
+    func restoreMatchPicks(_ picks: [RemuxPick]) {
+        guard !workflow.activity.isBusy else { return }
+        let current = remux.picks
+        registerMatchUndo(picks: current)
+        if let focus = applyPicks(picks) { matchFocusRowID = focus }
+    }
+
+    private func applyPicks(_ picks: [RemuxPick]) -> String? {
+        var focus: String?
+        mutate(.remux) { focus = $0.applyMatchPicks(picks) }
+        return focus
+    }
+
+    private func registerMatchUndo(picks: [RemuxPick]) {
+        guard let undo = mainWindow?.undoManager else { return }
+        undo.registerUndo(withTarget: matchUndo, selector: #selector(MatchUndoHub.undoMatch(_:)), object: MatchPickCodec.encode(picks))
+        undo.setActionName("Match")
+    }
+
+    private func clearMatchUndo() {
+        mainWindow?.undoManager?.removeAllActions(withTarget: matchUndo)
     }
 
     /// Nil without a bundle ID: UNUserNotificationCenter would crash (plan §3.3).

@@ -50,9 +50,41 @@ final class HelloWorldUITests: XCTestCase {
         }
         scan.click()
 
-        // The Name column shows the base name. The row's VoiceOver label is "sample, …".
-        let row = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "sample")).firstMatch
+        // SwiftUI Text on macOS puts the visible string in `value` and leaves `label`
+        // empty. `matching` tests the element; `containing` only tests descendants,
+        // so it never matches a StaticText.
+        _ = app.outlines.firstMatch.waitForExistence(timeout: 5)
+        let row = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "sample", "sample")
+        ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10),
-                      "The scanned sample.mkv row never showed up")
+                      "The scanned sample.mkv row never showed up. Observed: \(observedQueueTexts(app))")
+    }
+
+    /// Labels and values from the queue outline, for a failed row assertion.
+    private func observedQueueTexts(_ app: XCUIApplication) -> String {
+        let outline = app.outlines.firstMatch
+        guard outline.exists else {
+            return "no outline; " + summarizedStaticTexts(app.staticTexts)
+        }
+        let rows = outline.descendants(matching: .outlineRow).allElementsBoundByIndex
+        guard !rows.isEmpty else {
+            return "outline with 0 rows; " + summarizedStaticTexts(outline.descendants(matching: .staticText))
+        }
+        let described = rows.prefix(6).map { row -> String in
+            let texts = row.descendants(matching: .staticText).allElementsBoundByIndex.map { self.describe($0) }
+            return "row(\(self.describe(row)) texts=[\(texts.joined(separator: "; "))])"
+        }
+        return described.joined(separator: " | ")
+    }
+
+    private func summarizedStaticTexts(_ query: XCUIElementQuery) -> String {
+        let texts = query.allElementsBoundByIndex.prefix(12).map { self.describe($0) }
+        return "staticTexts=[\(texts.joined(separator: "; "))]"
+    }
+
+    private func describe(_ element: XCUIElement) -> String {
+        let value = element.value.map { "\($0)" } ?? ""
+        return "label='\(element.label)' value='\(value)'"
     }
 }

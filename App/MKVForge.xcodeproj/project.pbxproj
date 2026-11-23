@@ -13,6 +13,7 @@
 		2857DDF9BD14AADBAF5EC560 /* FolderFieldComponent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49369CF543389517D68C045 /* FolderFieldComponent.swift */; };
 		2861D173FAB86B1C3FAD7581 /* WindowEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447CFD14FB3908E89E386E9 /* WindowEvents.swift */; };
 		2E19C82D690C16DA9B143CF2 /* SplitPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B32A6192084A01D2DF2607 /* SplitPage.swift */; };
+		2E947A943E27119A05DAE449 /* RemuxMatchOnMKANameUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5D716AF36D7F84DB4D2DBB /* RemuxMatchOnMKANameUITests.swift */; };
 		364FFB5C9E16978FCA1A9534 /* DebugLogSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D576B60D15BB3A9F84A8579 /* DebugLogSupport.swift */; };
 		41C3EC8983082A9BD86CDB9E /* BasePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3897DCF252CF1A79E0596B2 /* BasePage.swift */; };
 		5189B8FFD6B78C6F43970474 /* UITestingLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */; };
@@ -63,6 +64,7 @@
 		A49369CF543389517D68C045 /* FolderFieldComponent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderFieldComponent.swift; sourceTree = "<group>"; };
 		A8576A8C62853B512A8BB65F /* MKVForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MKVForgeApp.swift; sourceTree = "<group>"; };
 		AC2ECD6C097DCA7643D8B8BF /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
+		AD5D716AF36D7F84DB4D2DBB /* RemuxMatchOnMKANameUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxMatchOnMKANameUITests.swift; sourceTree = "<group>"; };
 		B3897DCF252CF1A79E0596B2 /* BasePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasePage.swift; sourceTree = "<group>"; };
 		BB08216AEF3E32F3EDDFEDBD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestingLaunch.swift; sourceTree = "<group>"; };
@@ -98,6 +100,7 @@
 			isa = PBXGroup;
 			children = (
 				17AA30F6A00FDE85D013B427 /* HelloWorldUITests.swift */,
+				AD5D716AF36D7F84DB4D2DBB /* RemuxMatchOnMKANameUITests.swift */,
 				5F400027C12CE672A61FEA22 /* UITestFixtureBuilder.swift */,
 				A922F42C85EBF46F694B9BDD /* Base */,
 				E713D68E9BF2C6B4896119E0 /* Components */,
@@ -297,6 +300,7 @@
 				8A01A6D062C3D5F296809C63 /* MainWindowSmokeUITests.swift in Sources */,
 				9D2D2E165F871EB0AA8726F2 /* ModePickerComponent.swift in Sources */,
 				8EC8C240AA38B4273A0C7326 /* QueueRowComponent.swift in Sources */,
+				2E947A943E27119A05DAE449 /* RemuxMatchOnMKANameUITests.swift in Sources */,
 				E7E9C3DDE0F8F168ACF6FB65 /* RemuxPage.swift in Sources */,
 				022DBFDDC8F230C70399CA34 /* SettingsPage.swift in Sources */,
 				2E19C82D690C16DA9B143CF2 /* SplitPage.swift in Sources */,
@@ -345,7 +349,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -357,7 +361,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = 0.5.0;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForge;
 				PRODUCT_NAME = MKVForge;
@@ -435,7 +439,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -447,7 +451,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = 0.5.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForge;
 				PRODUCT_NAME = MKVForge;

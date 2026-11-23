@@ -6,6 +6,10 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-21 (build 6)
+### Added
+- Remux: Match on MKA Name (Settings, on by default). A video pairs with an MKA when its name starts with the MKA's name, ignoring case; collisions show as Ambiguous match with a Choose Match picker; picks clear on re-scan, folder or setting change (#33, supersedes #16).
+
 ## [0.4.1] - 2026-11-20 (build 5)
 ### Added
 - The MKVForge app icon in the Dock, Finder and About window: Design Bot's Track Clamp, an orange `.mkv` track and a purple `.mka` track joined by a steel clamp ring on a crimson plate, with hand-tuned 16 and 32 pt art.

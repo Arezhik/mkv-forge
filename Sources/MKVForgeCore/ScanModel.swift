@@ -1,11 +1,15 @@
 import Foundation
 
-// Scan results (docs/scaffold.md, Validation / Scan Rules; layout contract v2 §4–§5):
-// - One row per base name. Remux rows are the union of the Video and Audio folders.
+// Scan results (docs/scaffold.md, Validation / Scan Rules; layout contract v2 §4–§5;
+// v2.2 when Match on MKA Name is on):
+// - Exact matching: one row per base name. Remux rows are the union of the two folders.
+// - Match on MKA Name: a row is a pair or one unpaired file. Ambiguous rows use the file
+//   name with its extension, because `X.mka` and `X.mkv` share a base name.
 // - A row with any issue is an Issue row: unchecked, and it can't run in v1.
 // - Reason shows the first issue by priority plus "(+N more)"; the help text lists all.
 // - A note doesn't stop a row. A Ready row with a note shows it in Reason (a Remux video
-//   file with audio or subtitle tracks: only its video is used).
+//   file with audio or subtitle tracks: only its video is used; a pair you picked says
+//   `Matched by you`).
 
 public enum ScanMode: String, Equatable, Sendable {
     case split
@@ -56,12 +60,18 @@ public enum ScanIssue: Equatable, Sendable {
     case mkaHasNoAudioOrSubtitles(fileName: String)
     case outputIsVideoFolder
     case outputExists(fileName: String)
+    /// Match on MKA Name: this file has more than one counterpart, or it is a counterpart
+    /// of a file that does. `otherCount` is how many this row's menu lists.
+    case ambiguousMatch(fileName: String, otherCount: Int, otherIsVideo: Bool)
+    /// A pair that would be Ready, but `<fileName>` is already in the Output folder.
+    /// Exact matching keeps `.outputExists` and its older wording (issue #33, not #30).
+    case outputAlreadyExists(fileName: String)
 
     /// Lower comes first in the Reason column.
     public var priority: Int {
         switch self {
         case .duplicateName: return 0
-        case .noMatchingMKA, .noMatchingMKV: return 1
+        case .noMatchingMKA, .noMatchingMKV, .ambiguousMatch: return 1
         case .outputIsVideoFolder: return 2
         case .emptyFile: return 3
         case .stillChanging: return 4
@@ -69,7 +79,7 @@ public enum ScanIssue: Equatable, Sendable {
         case .notMatroska: return 6
         case .noTracks: return 7
         case .noAudioOrSubtitles, .noAudio, .noSubtitles, .noVideoTrack, .mkaHasNoAudioOrSubtitles: return 8
-        case .outputExists: return 9
+        case .outputExists, .outputAlreadyExists: return 9
         }
     }
 
@@ -105,6 +115,10 @@ public enum ScanIssue: Equatable, Sendable {
             return "Output folder is the Video folder"
         case let .outputExists(fileName):
             return "\(fileName) already exists in Output folder"
+        case .ambiguousMatch:
+            return "Ambiguous match"
+        case .outputAlreadyExists:
+            return "Output already exists"
         }
     }
 
@@ -141,6 +155,12 @@ public enum ScanIssue: Equatable, Sendable {
             return "The finished .mkv would replace the video file. Choose a different Output folder."
         case let .outputExists(name):
             return "\(name) is already in the Output folder. MKVForge never overwrites files. Move or rename it, then scan again."
+        case let .ambiguousMatch(fileName, count, otherIsVideo):
+            let noun = otherIsVideo ? "video file" : "audio file"
+            let plural = count == 1 ? noun : noun + "s"
+            return "\(fileName) matches \(count) \(plural). Choose the right one."
+        case let .outputAlreadyExists(name):
+            return "\u{201C}\(name)\u{201D} is already in the Output folder. MKVForge never overwrites it."
         }
     }
 }
@@ -151,11 +171,15 @@ public enum ScanNote: Equatable, Sendable {
     /// Remux: the video .mkv also has audio or subtitle tracks. Only its video track is
     /// used (`MKVMergeCommand.remux` passes `--no-audio --no-subtitles --no-chapters`).
     case videoOnly(fileName: String, audio: Int, subtitles: Int)
+    /// The user picked this pair from an Ambiguous match row (v2.2 §B.3).
+    case matchedByYou(videoFileName: String, audioFileName: String)
 
     public var reason: String {
         switch self {
         case let .videoOnly(_, audio, subtitles):
             return "Uses video only, ignores \(Self.trackCounts(audio: audio, subtitles: subtitles))"
+        case .matchedByYou:
+            return "Matched by you"
         }
     }
 
@@ -163,6 +187,8 @@ public enum ScanNote: Equatable, Sendable {
         switch self {
         case let .videoOnly(name, audio, subtitles):
             return "\(name) also has \(Self.trackCounts(audio: audio, subtitles: subtitles)). Remux takes only its video track; the audio, subtitles and chapters come from the .mka."
+        case let .matchedByYou(video, audio):
+            return "You paired \(audio) with \(video)."
         }
     }
 
@@ -193,8 +219,13 @@ public struct ScanItem: Identifiable, Equatable, Sendable {
     public private(set) var issues: [ScanIssue]
     /// Shown in Reason only while the row has no issues.
     public private(set) var notes: [ScanNote]
+    /// Queue identity. Equals `baseName` except for an ambiguous file, which uses its path
+    /// so `X.mka` and `X.mkv` are two rows.
+    public let rowID: String
+    /// Set on an Ambiguous match row. Nil for every other row.
+    public var matchMenu: RemuxMatchMenu?
 
-    public init(baseName: String, sourcePath: String?, mkaPath: String? = nil, outputPath: String, sourceInfo: MediaInfo? = nil, mkaInfo: MediaInfo? = nil, issues: [ScanIssue] = [], notes: [ScanNote] = []) {
+    public init(baseName: String, sourcePath: String?, mkaPath: String? = nil, outputPath: String, sourceInfo: MediaInfo? = nil, mkaInfo: MediaInfo? = nil, issues: [ScanIssue] = [], notes: [ScanNote] = [], rowID: String? = nil, matchMenu: RemuxMatchMenu? = nil) {
         self.baseName = baseName
         self.sourcePath = sourcePath
         self.mkaPath = mkaPath
@@ -203,6 +234,31 @@ public struct ScanItem: Identifiable, Equatable, Sendable {
         self.mkaInfo = mkaInfo
         self.issues = Self.ordered(issues)
         self.notes = notes
+        self.rowID = rowID ?? baseName
+        self.matchMenu = matchMenu
+    }
+
+    /// A Ready row the user paired from Choose Match.
+    public var matchedByYou: Bool {
+        notes.contains { if case .matchedByYou = $0 { return true } else { return false } }
+    }
+
+    /// The `.mka` file name shown after the video name when the two stems differ.
+    /// Nil for an exact pair (`V == K`), and for any row that isn't a pair.
+    public var counterpartName: String? {
+        guard sourcePath != nil, let mkaPath else { return nil }
+        let audioFile = (mkaPath as NSString).lastPathComponent
+        let audioStem = (audioFile as NSString).deletingPathExtension
+        guard audioStem != baseName else { return nil }
+        return audioFile
+    }
+
+    /// Name-cell help for a prefix pair: `Arrival CRF21.mkv ↔ Arrival.mka`.
+    public var pairNameHelp: String? {
+        guard counterpartName != nil, let sourcePath, let mkaPath else { return nil }
+        let videoFile = (sourcePath as NSString).lastPathComponent
+        let audioFile = (mkaPath as NSString).lastPathComponent
+        return "\(videoFile) ↔ \(audioFile)"
     }
 
     /// Ready rows start checked. Flagged rows can't be checked in v1.
@@ -233,13 +289,20 @@ public struct ScanItem: Identifiable, Equatable, Sendable {
 public struct ScanResult: Equatable, Sendable {
     public let mode: ScanMode
     public let scannedAt: Date
-    /// Sorted by name (case-insensitive, numbers in numeric order).
+    /// Sorted by the shown name (case-insensitive, numbers in numeric order).
     public let items: [ScanItem]
+    /// Set when this Remux scan used Match on MKA Name, so a pick can be re-scored
+    /// without reading the folders again. Nil for Split and for exact Remux matching.
+    public let inventory: RemuxInventory?
+    /// Picks applied to `inventory`, in the order the user made them.
+    public let picks: [RemuxPick]
 
-    public init(mode: ScanMode, scannedAt: Date, items: [ScanItem]) {
+    public init(mode: ScanMode, scannedAt: Date, items: [ScanItem], inventory: RemuxInventory? = nil, picks: [RemuxPick] = []) {
         self.mode = mode
         self.scannedAt = scannedAt
         self.items = items.sorted { Self.nameOrder($0.baseName, $1.baseName) }
+        self.inventory = inventory
+        self.picks = picks
     }
 
     /// Rows (base names).

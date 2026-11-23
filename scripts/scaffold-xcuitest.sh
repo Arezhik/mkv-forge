@@ -64,6 +64,7 @@ final class ${FLOW}UITests: XCTestCase {
         XCTAssertTrue(window.waitForExistence(timeout: 5), "Main application window did not appear.")
 
         // TODO: Assert critical controls via accessibilityIdentifier (avoid brittle coordinates)
+        // Do not query SwiftUI Text with containing() + "label CONTAINS" (matches descendants; macOS text is the value). Use matching() on label OR value.
         // Example:
         // let toggle = app.checkBoxes["matchOnMKANameToggle"]
         // XCTAssertTrue(toggle.waitForExistence(timeout: 2))

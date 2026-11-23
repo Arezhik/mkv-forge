@@ -124,6 +124,8 @@ public struct Workflow: Equatable, Sendable {
     public static let needsFolders = "Choose every folder first"
     public static let needsScan = "Scan the folders first"
     public static let needsChecked = "Check at least one file"
+    /// Nothing is checked, and at least one row is still an Ambiguous match (v2.2 §B.7).
+    public static let needsMatchOrCheck = "Choose a match or check a Ready row."
     public static let busyHelp = "Wait for the current scan or batch to end"
 
     public func enablement(_ state: ModeState, toolUsable: Bool) -> Enablement {
@@ -140,8 +142,9 @@ public struct Workflow: Equatable, Sendable {
         case .idle:
             if !toolUsable { primaryHelp = Self.needsMKVToolNix }
             else if state.scan == nil { primaryHelp = Self.needsScan }
-            else if state.checkedCount == 0 { primaryHelp = Self.needsChecked }
-            else { primaryHelp = nil }
+            else if state.checkedCount == 0 {
+                primaryHelp = state.hasAmbiguousMatch ? Self.needsMatchOrCheck : Self.needsChecked
+            } else { primaryHelp = nil }
         }
         let primary: Bool
         switch activity {
