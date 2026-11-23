@@ -2,12 +2,13 @@
 
 Playwright-style page objects for `MKVForgeUITests`. Tests stay thin. Screens and regions own the locators.
 
-`HelloWorldUITests.swift` and `UITestFixtureBuilder.swift` stay in this folder. Do not move them until the migration below.
+`HelloWorldUITests.swift`, `RemuxMatchOnMKANameUITests.swift`, and `UITestFixtureBuilder.swift` stay in this folder. Do not move them until the migration below. Do not rewrite `RemuxMatchOnMKANameUITests.swift` here.
 
 ```
 App/MKVUITests/
-├── HelloWorldUITests.swift       # existing test; stays here for now
-├── UITestFixtureBuilder.swift    # temp folders and media; stays here for now
+├── HelloWorldUITests.swift            # existing test; stays here for now
+├── RemuxMatchOnMKANameUITests.swift   # from #36; stays here. Do not rewrite or move it in this PR.
+├── UITestFixtureBuilder.swift         # temp folders and media; stays here for now
 ├── README.md
 ├── Tests/                        # thin test cases only
 ├── Pages/                        # one class per major screen
@@ -66,7 +67,7 @@ Folder fields are different: they set `accessibilityLabel` explicitly, so `label
 
 ## Accessibility identifiers
 
-On main today:
+These identifiers are on main and in this tree:
 
 | Identifier | What |
 | --- | --- |
@@ -74,32 +75,29 @@ On main today:
 | `outputFolder` | Output field (both modes) |
 | `videoFolder` | Remux Video field |
 | `audioFolder` | Remux Audio field |
+| `modePicker` | The segmented mode control. Also labeled `"Mode"`. `ModePickerComponent` prefers this id and keeps the `"Mode"` label as a fallback. |
+| `queueRow` | A queue row. Label like `"<stem>, Ready"` or `"<stem>, Issue, <reason>"`. `QueueRowComponent` prefers this id and keeps `matching` on `label` or `value` as a fallback. |
 | Scan button | Title `"Scan"`. Disabled without MKVToolNix. `XCTSkip` when `isEnabled` is false. Do not fail the test for a missing tool. |
 
-The mode picker has accessibility label `"Mode"` and no identifier. The toolbar primary button is titled `"Split"` or `"Remux"` while idle, so it is easy to click it instead of the segment. `ModePickerComponent` clicks a segment **inside** the picker. `primaryActionButton(titled:)` is the toolbar button and starts work. It is not the mode switch.
-
-Arriving with PR #36 (not on main yet):
-
-| Identifier | What |
-| --- | --- |
-| `modePicker` | The segmented mode control. `ModePickerComponent` prefers this id and falls back to the `"Mode"` label. |
-| `queueRow` | A queue row. Label like `"<stem>, Ready"` or `"<stem>, Issue, <reason>"`. `QueueRowComponent` prefers this id. Until it exists, it matches the stem with `matching` on `label` or `value`. |
+The toolbar primary button is titled `"Split"` or `"Remux"` while idle, so it is easy to click it instead of the mode segment. `ModePickerComponent` clicks a segment **inside** the picker. `primaryActionButton(titled:)` is the toolbar button and starts work. It is not the mode switch.
 
 ## Adding a test
 
 Put a new thin test in `Tests/`. Subclass `BaseUITest`. Use pages and components. Name steps with `XCTContext.runActivity` when a sequence is easier to read that way. Keep edge cases in `MKVForgeCoreTests`.
 
-`scripts/scaffold-xcuitest.sh` still writes `App/MKVUITests/<Flow>UITests.swift` and subclasses `XCTestCase` directly. Prefer `Tests/` and `BaseUITest` (still `--uitesting` only). The script was left as it is so it does not collide with PR #44, which edits that template.
+`scripts/scaffold-xcuitest.sh` still writes `App/MKVUITests/<Flow>UITests.swift` and subclasses `XCTestCase` directly. Prefer `Tests/` and `BaseUITest` (still `--uitesting` only). PR #44 has merged, and its row-query note is already in that template. This branch does not move the script's output into `Tests/`.
 
 `UITestFixtureBuilder.swift` stays at `App/MKVUITests/`. Helpers wrap it. They do not copy `createDummyFile` or `createValidMediaFile`.
 
 ## Migration (do not do this on the scaffold branch)
 
-After PR #36 and PR #44 have merged:
+PR #36 and PR #44 have merged. `RemuxMatchOnMKANameUITests.swift` is in this tree. Do not rewrite it here, and do not move it in this PR. `HelloWorldUITests` already has the #44 row-query fix (`matching` + `label CONTAINS` OR `value CONTAINS`). Migrate that later. Do not re-fix the query on this branch, and do not move `HelloWorldUITests.swift` in this PR.
+
+Later:
 
 1. Move existing tests into `Tests/`. Leave `UITestFixtureBuilder.swift` here until a later change, and keep calling it through `UITestFixtures`.
-2. `HelloWorldUITests` should subclass `BaseUITest` and use `SplitPage`, `FolderFieldComponent`, and `QueueRowComponent`. Seed `sample.mkv` / `sample.mka` in `prepareFixtures()`. PR #44 fixes its row query (`matching` + `label CONTAINS` OR `value CONTAINS`). Migrate that fix. Do not re-fix the query on this branch.
-3. `RemuxMatchOnMKANameUITests.swift` is on PR #36, not on main. Do not rewrite it here. When it moves:
+2. `HelloWorldUITests` should subclass `BaseUITest` and use `SplitPage`, `FolderFieldComponent`, and `QueueRowComponent`. Seed `sample.mkv` / `sample.mka` in `prepareFixtures()`. Keep the #44 row query when you migrate. Do not re-fix it.
+3. When `RemuxMatchOnMKANameUITests.swift` moves:
    - `BaseUITest` owns launch (`--uitesting` only), the four `UITEST_*` variables, and `cleanup()`.
    - `prepareFixtures()` keeps today's setup: valid video, audio, and unmatched files, with modification dates settled so the "still changing" rule does not flag them.
    - `RemuxPage.switchToRemux()` replaces the private `selectRemux` helper. It must keep clicking the segment inside `modePicker`, not the toolbar Remux button.

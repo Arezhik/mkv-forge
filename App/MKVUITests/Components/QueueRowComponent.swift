@@ -2,12 +2,13 @@ import XCTest
 
 // Component: one queue row. A component owns a region.
 //
-// On main the Name cell is a SwiftUI Text. Its visible string is `value`
-// (often `"<stem>, Ready"` or `"<stem>, Issue, <reason>"`) and `label` is often empty.
+// The Name cell is a SwiftUI Text. Its visible string is often `value`
+// (`"<stem>, Ready"` or `"<stem>, Issue, <reason>"`) and `label` is often empty.
 // Match with `matching` (`label CONTAINS` OR `value CONTAINS`), never `containing`.
 //
-// Identifier `queueRow` arrives with PR #36. The row's VoiceOver label is then
-// `"<stem>, Ready"` or `"<stem>, Issue, <reason>"`. `identifiedElement` references that id.
+// Identifier `queueRow` is on the row. Its VoiceOver label is
+// `"<stem>, Ready"` or `"<stem>, Issue, <reason>"`. Prefer that id.
+// Label-or-value matching stays as a fallback.
 
 /// One queue row, found by its file stem (the base name, such as `"sample"`).
 @MainActor
@@ -15,7 +16,7 @@ struct QueueRowComponent {
     let app: XCUIApplication
     let stem: String
 
-    /// PR #36 row whose label or value contains the stem. Absent on current main.
+    /// `queueRow` whose label or value contains the stem.
     var identifiedElement: XCUIElement {
         app.descendants(matching: .any).matching(
             NSPredicate(
@@ -25,7 +26,7 @@ struct QueueRowComponent {
         ).firstMatch
     }
 
-    /// Name cell on current main. `matching`, not `containing`.
+    /// Name-cell fallback. `matching`, not `containing`.
     var stemElement: XCUIElement {
         app.descendants(matching: .any).matchingLabelOrValue(containing: stem).firstMatch
     }
@@ -48,9 +49,9 @@ struct QueueRowComponent {
         return stemElement
     }
 
-    /// Exact VoiceOver string used after PR #36, for example
+    /// Exact VoiceOver string, for example
     /// `"<stem>, Ready"` or `"<stem>, Issue, No matching .mka in Audio folder"`.
-    /// Also matches a main-branch Name cell whose `value` is that whole string.
+    /// Prefers `queueRow`. Also matches a Name cell whose `value` is that whole string.
     @discardableResult
     func requireExactLabel(
         _ expected: String,

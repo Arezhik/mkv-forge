@@ -3,8 +3,8 @@ import XCTest
 // Component: the mode switch. A component owns a region.
 // Selecting a segment returns the page for that mode.
 //
-// On main the segmented picker has accessibilityLabel "Mode" and no identifier.
-// Identifier `modePicker` arrives with PR #36.
+// The segmented picker has accessibility identifier `modePicker` and
+// accessibility label "Mode". Prefer the identifier. The "Mode" label is a fallback.
 // The toolbar primary button is also titled "Split" or "Remux". Click a segment
 // inside the picker, not `app.buttons["Remux"]`, or the test starts a batch.
 
@@ -13,7 +13,7 @@ import XCTest
 struct ModePickerComponent {
     let app: XCUIApplication
 
-    /// `modePicker` when this build has it (PR #36). Otherwise the "Mode" control.
+    /// The mode control. Prefers identifier `modePicker`, then the "Mode" label.
     var element: XCUIElement {
         let identified = app.descendants(matching: .any)["modePicker"]
         if identified.exists {
@@ -55,7 +55,7 @@ struct ModePickerComponent {
     }
 
     private func resolvedPicker(timeout: TimeInterval) -> XCUIElement {
-        // `modePicker` is the PR #36 identifier. The label fallback is what main has today.
+        // Prefer `modePicker`. Fall back to the "Mode" label.
         let identified = app.descendants(matching: .any)["modePicker"]
         let segmented = app.segmentedControls["Mode"]
         let labeled = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Mode")).firstMatch
