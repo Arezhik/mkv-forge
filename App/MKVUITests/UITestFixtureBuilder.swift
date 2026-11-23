@@ -3,7 +3,7 @@ import XCTest
 
 /// Temporary folders and tiny media files for XCUITest. Each test gets its own
 /// root under the system temp directory, with `video/`, `audio/`, `input/`, and
-/// `output/` already created. Call `cleanup()` from `tearDown`.
+/// `output/` already created. `BaseUITest` calls `cleanup()` from `tearDown`.
 final class UITestFixtureBuilder {
     let root: URL
     let video: URL
@@ -26,6 +26,15 @@ final class UITestFixtureBuilder {
 
     func cleanup() {
         try? fileManager.removeItem(at: root)
+    }
+
+    /// A file modified in the last minute is "still changing", which blocks Ready.
+    /// Move the modification date back two minutes so a scan can mark the file Ready.
+    func settle(_ url: URL) throws {
+        try fileManager.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-120)],
+            ofItemAtPath: url.path
+        )
     }
 
     /// A 0-byte placeholder (`.mkv`, `.mka`, `.mp4`, `.sup`, `.srt`) for queue and matching tests.

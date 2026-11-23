@@ -3,6 +3,11 @@ set -euo pipefail
 
 # Usage: ./scripts/scaffold-xcuitest.sh <FlowName>
 # Example: ./scripts/scaffold-xcuitest.sh RemuxMatchFlow
+#
+# When App/MKVUITests/Tests and Base/BaseUITest.swift exist, this writes
+# Tests/<Flow>UITests.swift as a BaseUITest subclass (no inline locators,
+# no app.launch()). Otherwise it writes a root *UITests.swift that still
+# launches with --uitesting only.
 
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <FlowName>"
@@ -32,14 +37,59 @@ if [ -z "$UI_TEST_DIR" ]; then
   exit 1
 fi
 
-TEST_FILE="$UI_TEST_DIR/${FLOW}UITests.swift"
+# Playwright-style layout: thin tests live in Tests/ and subclass BaseUITest.
+if [ -d "$UI_TEST_DIR/Tests" ] && [ -f "$UI_TEST_DIR/Base/BaseUITest.swift" ]; then
+  TEST_FILE="$UI_TEST_DIR/Tests/${FLOW}UITests.swift"
+  USE_POM=1
+else
+  TEST_FILE="$UI_TEST_DIR/${FLOW}UITests.swift"
+  USE_POM=0
+fi
 
 if [ -e "$TEST_FILE" ]; then
   echo "Error: $TEST_FILE already exists."
   exit 1
 fi
 
-cat > "$TEST_FILE" <<EOF
+if [ "$USE_POM" -eq 1 ]; then
+  cat > "$TEST_FILE" <<EOF
+import XCTest
+
+// Thin test. Launch, fixtures, and teardown live on BaseUITest.
+// Do not override setUp, setUpWithError, or tearDown.
+// Do not call app.launch() or construct XCUIApplication in this file.
+// Do not add -ApplePersistenceIgnoreState YES: combined with --uitesting it suppresses the main Window.
+//
+// Pages and components own every locator. Do not query XCUIElement here.
+// MainWindowPage, SplitPage, RemuxPage, SettingsPage,
+// FolderFieldComponent, ModePickerComponent, QueueRowComponent.
+// clickScanOrSkip() skips when Scan is disabled. This smoke does not click Scan.
+
+@MainActor
+final class ${FLOW}UITests: BaseUITest {
+    override func prepareFixtures() async throws {
+        // Seed files before launch. This window-and-folders smoke needs none.
+    }
+
+    func test${FLOW}CriticalPath() throws {
+        let page = SplitPage(app: app)
+
+        XCTContext.runActivity(named: "Main window appears") { _ in
+            page.waitForSplitChrome()
+        }
+
+        XCTContext.runActivity(named: "Source folder shows the input fixture") { _ in
+            page.sourceFolder.assertShowsPathFragment("input")
+        }
+
+        XCTContext.runActivity(named: "Output folder shows the output fixture") { _ in
+            page.outputFolder.assertShowsPathFragment("output")
+        }
+    }
+}
+EOF
+else
+  cat > "$TEST_FILE" <<EOF
 import XCTest
 
 @MainActor
@@ -50,7 +100,7 @@ final class ${FLOW}UITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         // Do not add -ApplePersistenceIgnoreState YES: it combines with --uitesting to suppress the main Window.
-        app.launchArguments += ["--uitesting"]
+        app.launchArguments = ["--uitesting"]
         app.launch()
     }
 
@@ -71,6 +121,7 @@ final class ${FLOW}UITests: XCTestCase {
     }
 }
 EOF
+fi
 
 echo "Created XCUITest: $TEST_FILE"
 
