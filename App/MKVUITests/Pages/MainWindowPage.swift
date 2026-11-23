@@ -14,10 +14,25 @@ class MainWindowPage: BasePage {
     }
 
     /// Folder-panel Scan button. The title is "Scan".
-    /// It is disabled when MKVToolNix is missing. A test that clicks it must
-    /// `XCTSkip` when `scanButton.isEnabled` is false (see `HelloWorldUITests`).
+    /// It is disabled when MKVToolNix is missing. Tests click it through
+    /// `clickScanOrSkip()`, which skips when `isEnabled` is false.
     var scanButton: XCUIElement {
         app.buttons["Scan"]
+    }
+
+    /// Waits for Scan and clicks it. Skips when the button is disabled
+    /// (MKVToolNix is missing) after folder seeding has already been checked.
+    /// A missing button fails the test. It does not skip.
+    func clickScanOrSkip() throws {
+        let scan = scanButton
+        guard scan.waitForExistence(timeout: UITestTimeout.standard) else {
+            XCTFail("The Scan button never showed up")
+            return
+        }
+        guard scan.isEnabled else {
+            throw XCTSkip("Scan is disabled (needs MKVToolNix); folder seeding was verified")
+        }
+        scan.click()
     }
 
     /// Toolbar primary action while idle or running.

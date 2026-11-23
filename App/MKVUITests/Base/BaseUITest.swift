@@ -18,7 +18,7 @@ class BaseUITest: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         fixtures = try UITestFixtures.make()
-        try prepareFixtures()
+        try await prepareFixtures()
         let application = XCUIApplication()
         // Replace, do not append. The only argument is `--uitesting`.
         application.launchArguments = ["--uitesting"]
@@ -28,16 +28,15 @@ class BaseUITest: XCTestCase {
     }
 
     override func tearDown() async throws {
-        // XCTest stops the app after the test. Remove the temp root here,
-        // the same way `HelloWorldUITests` does.
+        // XCTest stops the app after the test. Remove the temp root here.
         UITestFixtures.cleanup(fixtures)
         fixtures = nil
         app = nil
     }
 
     /// Seed dummy or real media before launch. The base does not create files.
-    /// A window-and-folders smoke needs none. `HelloWorldUITests` creates
-    /// `sample.mkv` / `sample.mka`. A Remux scan creates settled media here
-    /// when that test moves onto this fixture.
-    func prepareFixtures() throws {}
+    /// A window-and-folders smoke needs none. Subclasses override this to call
+    /// `fixtures` (`createDummyFile`, `createValidMediaFile`, `settle`).
+    /// Do not launch the app here, and do not override `setUp`.
+    func prepareFixtures() async throws {}
 }

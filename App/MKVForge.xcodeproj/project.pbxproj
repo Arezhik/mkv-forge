@@ -8,12 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		022DBFDDC8F230C70399CA34 /* SettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2ECD6C097DCA7643D8B8BF /* SettingsPage.swift */; };
+		07F6C7498771333EFE2C7041 /* HelloWorldUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B571F909AA0951C9EB942F8 /* HelloWorldUITests.swift */; };
 		0D729A31503EF71D91816755 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389CDAC04276C249F212248B /* ContentView.swift */; };
 		0FF692178EF37677938D4692 /* MKVForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8576A8C62853B512A8BB65F /* MKVForgeApp.swift */; };
+		21116FDFD8001036C78F16CE /* RemuxMatchOnMKANameUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9E2FB71476CEB766DDC6A15 /* RemuxMatchOnMKANameUITests.swift */; };
 		2857DDF9BD14AADBAF5EC560 /* FolderFieldComponent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49369CF543389517D68C045 /* FolderFieldComponent.swift */; };
 		2861D173FAB86B1C3FAD7581 /* WindowEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447CFD14FB3908E89E386E9 /* WindowEvents.swift */; };
 		2E19C82D690C16DA9B143CF2 /* SplitPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B32A6192084A01D2DF2607 /* SplitPage.swift */; };
-		2E947A943E27119A05DAE449 /* RemuxMatchOnMKANameUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5D716AF36D7F84DB4D2DBB /* RemuxMatchOnMKANameUITests.swift */; };
 		364FFB5C9E16978FCA1A9534 /* DebugLogSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D576B60D15BB3A9F84A8579 /* DebugLogSupport.swift */; };
 		41C3EC8983082A9BD86CDB9E /* BasePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3897DCF252CF1A79E0596B2 /* BasePage.swift */; };
 		5189B8FFD6B78C6F43970474 /* UITestingLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */; };
@@ -31,7 +32,6 @@
 		CD34CB0FD63C72AB660F6096 /* UITestFixtureBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F400027C12CE672A61FEA22 /* UITestFixtureBuilder.swift */; };
 		E7E9C3DDE0F8F168ACF6FB65 /* RemuxPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0094AFE47DCA40222C32D6 /* RemuxPage.swift */; };
 		EFBC01C4967140D2D9ECFC08 /* BaseUITest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE507E6FBC58A20CFF649DD /* BaseUITest.swift */; };
-		F0B9A509237EADA6B4A54A6B /* HelloWorldUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AA30F6A00FDE85D013B427 /* HelloWorldUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,7 +48,6 @@
 		0D576B60D15BB3A9F84A8579 /* DebugLogSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogSupport.swift; sourceTree = "<group>"; };
 		1496BB0D61ABEEFD71BF9129 /* MKVForge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MKVForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		14D4BBC71D0E4478E0428960 /* XCUIElement+UITest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XCUIElement+UITest.swift"; sourceTree = "<group>"; };
-		17AA30F6A00FDE85D013B427 /* HelloWorldUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelloWorldUITests.swift; sourceTree = "<group>"; };
 		1AE507E6FBC58A20CFF649DD /* BaseUITest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseUITest.swift; sourceTree = "<group>"; };
 		1C0094AFE47DCA40222C32D6 /* RemuxPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxPage.swift; sourceTree = "<group>"; };
 		2696D2594905DBACDA07FB03 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -57,6 +56,7 @@
 		3C40FE7EE8CECD4D67EF349D /* ModePickerComponent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePickerComponent.swift; sourceTree = "<group>"; };
 		40C3B8B16D0EFAC73549387C /* MKVForgeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MKVForgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5F400027C12CE672A61FEA22 /* UITestFixtureBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestFixtureBuilder.swift; sourceTree = "<group>"; };
+		6B571F909AA0951C9EB942F8 /* HelloWorldUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelloWorldUITests.swift; sourceTree = "<group>"; };
 		732DB57213FB70CB4DBF41FC /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		75A73DF67C5EFC255E1A647E /* UITestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestFixtures.swift; sourceTree = "<group>"; };
 		8158EA0016D4686F63028DC5 /* MainWindowPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowPage.swift; sourceTree = "<group>"; };
@@ -64,7 +64,6 @@
 		A49369CF543389517D68C045 /* FolderFieldComponent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderFieldComponent.swift; sourceTree = "<group>"; };
 		A8576A8C62853B512A8BB65F /* MKVForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MKVForgeApp.swift; sourceTree = "<group>"; };
 		AC2ECD6C097DCA7643D8B8BF /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
-		AD5D716AF36D7F84DB4D2DBB /* RemuxMatchOnMKANameUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxMatchOnMKANameUITests.swift; sourceTree = "<group>"; };
 		B3897DCF252CF1A79E0596B2 /* BasePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasePage.swift; sourceTree = "<group>"; };
 		BB08216AEF3E32F3EDDFEDBD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestingLaunch.swift; sourceTree = "<group>"; };
@@ -73,6 +72,7 @@
 		E28EA4CFE3B3345DB6747F48 /* QueueRowComponent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueRowComponent.swift; sourceTree = "<group>"; };
 		F447CFD14FB3908E89E386E9 /* WindowEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowEvents.swift; sourceTree = "<group>"; };
 		F8B031BB11CC580C1C724420 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F9E2FB71476CEB766DDC6A15 /* RemuxMatchOnMKANameUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxMatchOnMKANameUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,8 +99,6 @@
 		61D27E5330AE75B213DC0CFA /* MKVUITests */ = {
 			isa = PBXGroup;
 			children = (
-				17AA30F6A00FDE85D013B427 /* HelloWorldUITests.swift */,
-				AD5D716AF36D7F84DB4D2DBB /* RemuxMatchOnMKANameUITests.swift */,
 				5F400027C12CE672A61FEA22 /* UITestFixtureBuilder.swift */,
 				A922F42C85EBF46F694B9BDD /* Base */,
 				E713D68E9BF2C6B4896119E0 /* Components */,
@@ -114,7 +112,9 @@
 		62D6FE98EA1D7E3D4216D3BB /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				6B571F909AA0951C9EB942F8 /* HelloWorldUITests.swift */,
 				D8DF373DACD8A87D7E85CFEF /* MainWindowSmokeUITests.swift */,
+				F9E2FB71476CEB766DDC6A15 /* RemuxMatchOnMKANameUITests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -295,12 +295,12 @@
 				41C3EC8983082A9BD86CDB9E /* BasePage.swift in Sources */,
 				EFBC01C4967140D2D9ECFC08 /* BaseUITest.swift in Sources */,
 				2857DDF9BD14AADBAF5EC560 /* FolderFieldComponent.swift in Sources */,
-				F0B9A509237EADA6B4A54A6B /* HelloWorldUITests.swift in Sources */,
+				07F6C7498771333EFE2C7041 /* HelloWorldUITests.swift in Sources */,
 				6753D013FA4C907A711E6668 /* MainWindowPage.swift in Sources */,
 				8A01A6D062C3D5F296809C63 /* MainWindowSmokeUITests.swift in Sources */,
 				9D2D2E165F871EB0AA8726F2 /* ModePickerComponent.swift in Sources */,
 				8EC8C240AA38B4273A0C7326 /* QueueRowComponent.swift in Sources */,
-				2E947A943E27119A05DAE449 /* RemuxMatchOnMKANameUITests.swift in Sources */,
+				21116FDFD8001036C78F16CE /* RemuxMatchOnMKANameUITests.swift in Sources */,
 				E7E9C3DDE0F8F168ACF6FB65 /* RemuxPage.swift in Sources */,
 				022DBFDDC8F230C70399CA34 /* SettingsPage.swift in Sources */,
 				2E19C82D690C16DA9B143CF2 /* SplitPage.swift in Sources */,
