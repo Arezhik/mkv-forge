@@ -19,7 +19,8 @@ final class HelloWorldUITests: XCTestCase {
 
     func testAppOpensMainWindow() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting", "-ApplePersistenceIgnoreState", "YES"]
+        // Do not add -ApplePersistenceIgnoreState YES: it combines with --uitesting to suppress the main Window.
+        app.launchArguments = ["--uitesting"]
         app.launchEnvironment = [
             "UITEST_SOURCE_DIR": fixtures.input.path,
             "UITEST_OUTPUT_DIR": fixtures.output.path,
