@@ -88,7 +88,12 @@ targets:
     type: bundle.ui-testing
     platform: macOS
     sources:
+      # Recurses into Tests, Pages, Components, Helpers, and Base.
+      # README.md is documentation for that layout. Leave it out of the test bundle.
       - path: MKVUITests
+        excludes:
+          - "README.md"
+          - "**/*.md"
     dependencies:
       - target: MKVForge
     settings:
