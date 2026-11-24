@@ -80,9 +80,15 @@ Folder fields are different: they set `accessibilityLabel` explicitly, so `label
 | `audioFolder` | Remux Audio field |
 | `modePicker` | The segmented mode control. Also labeled `"Mode"`. `ModePickerComponent` prefers this id and keeps the `"Mode"` label as a fallback. |
 | `queueRow` | A queue row. Label like `"<stem>, Ready"` or `"<stem>, Issue, <reason>"`. `QueueRowComponent` prefers this id and keeps `matching` on `label` or `value` as a fallback. |
+| `primaryAction` | The toolbar Split, Remux, or Cancel button. Not the mode segment. Its accessibility label is that title. `assertPrimary(titled:enabled:)` and `clickPrimaryAction(titled:)` use this id. |
+| `scanStatus` | The scan-row caption. Label is `Scan status`. The caption is the value. |
+| `toolBanner` | The MKVToolNix-missing banner. The title text is `MKVToolNix wasn't found.` |
+| `bottomSummary` | The bottom-bar summary. Its accessibility label is the plain summary, such as `Finished · 1 done`. |
+| `showInFinder` | The bottom-bar Show in Finder button. Not the folder-field or row context-menu item of the same title. Do not click it. |
+| `batchProgressCaption` | The finished-run caption under the progress bar. The text is exact, such as `1 .mka saved`. |
 | Scan button | Title `"Scan"`. Disabled without MKVToolNix. `MainWindowPage.clickScanOrSkip()` throws `XCTSkip("Scan is disabled (needs MKVToolNix); folder seeding was verified")` when `isEnabled` is false. Do not fail the test for a missing tool. Do not query `app.buttons["Scan"]` from a test. |
 
-The toolbar primary button is titled `"Split"` or `"Remux"` while idle, so it is easy to click it instead of the mode segment. `ModePickerComponent` clicks a segment **inside** the picker. `switchToRemux()` uses that segment. `primaryActionButton(titled:)` is the toolbar button and starts work. It is not the mode switch.
+The toolbar primary button is titled `"Split"` or `"Remux"` while idle, so it is easy to click it instead of the mode segment. `ModePickerComponent` clicks a segment **inside** the picker. `switchToRemux()` uses that segment. `clickPrimaryAction(titled:)` clicks identifier `primaryAction`. It is not the mode switch.
 
 ## Fixtures
 

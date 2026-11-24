@@ -124,6 +124,8 @@ private struct PrimaryButton: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!enablement.primary)
+                .accessibilityIdentifier("primaryAction")
+                .accessibilityLabel(title)
             case .cancel:
                 Button {
                     model.primaryAction()
@@ -132,6 +134,8 @@ private struct PrimaryButton: View {
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.bordered)
+                .accessibilityIdentifier("primaryAction")
+                .accessibilityLabel(PrimaryAction.cancel.title)
             case .cancelling:
                 Button {} label: {
                     HStack(spacing: 6) {
@@ -143,6 +147,8 @@ private struct PrimaryButton: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(true)
+                .accessibilityIdentifier("primaryAction")
+                .accessibilityLabel(PrimaryAction.cancelling.title)
             }
         }
         .frame(minWidth: 96)
@@ -184,6 +190,7 @@ private struct ToolBanner: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("toolBanner")
     }
 
     private var title: String {
@@ -300,6 +307,7 @@ private struct ScanRow: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(scanning ? ScanCaption.escHelp : (model.scanFailed ? caption : ""))
+                .accessibilityIdentifier("scanStatus")
                 .accessibilityLabel("Scan status")
                 .accessibilityValue(caption.replacingOccurrences(of: "Scanning… ", with: "Scanning, "))
             Button {
@@ -598,6 +606,7 @@ private struct BottomBar: View {
                 .font(.system(size: 12.5))
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .accessibilityIdentifier("bottomSummary")
                 .accessibilityLabel(summary.plain)
             Spacer(minLength: 12)
             if StatusLines.showsShowInFinder(workflow, state) {
@@ -605,20 +614,26 @@ private struct BottomBar: View {
                     model.showOutputsInFinder()
                 }
                 .controlSize(.small)
+                .accessibilityIdentifier("showInFinder")
             }
             if let column = StatusLines.progressColumn(workflow, state) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(column.caption.isEmpty ? " " : column.caption)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("batchProgressCaption")
+                        .accessibilityLabel(column.caption)
+                        .accessibilityHidden(column.caption.isEmpty)
+                    // Ignore the indicator's own value (a fraction) so VoiceOver and
+                    // XCUITest read `1 of 1 complete`. The caption stays a sibling.
                     ProgressView(value: Double(column.completed), total: Double(max(column.total, 1)))
                         .progressViewStyle(.linear)
                         .controlSize(.small)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Batch progress")
+                        .accessibilityValue(StatusLines.progressAccessibilityValue(column))
                 }
                 .frame(width: 152)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Batch progress")
-                .accessibilityValue(StatusLines.progressAccessibilityValue(column))
             }
         }
         .padding(.horizontal, 16)

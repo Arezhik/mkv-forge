@@ -28,6 +28,16 @@ final class UITestFixtureBuilder {
         try? fileManager.removeItem(at: root)
     }
 
+    /// Byte size of a fixture file, or nil when the path is missing.
+    /// UI tests use this for output checks. It is not a screen locator.
+    func byteCount(at url: URL) -> Int? {
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              let size = attributes[.size] as? NSNumber else {
+            return nil
+        }
+        return size.intValue
+    }
+
     /// A file modified in the last minute is "still changing", which blocks Ready.
     /// Move the modification date back two minutes so a scan can mark the file Ready.
     func settle(_ url: URL) throws {

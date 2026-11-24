@@ -8,6 +8,8 @@ enum UITestTimeout {
     static let short: TimeInterval = 2
     static let standard: TimeInterval = 5
     static let long: TimeInterval = 10
+    /// One 1-second mkvmerge job, including process startup.
+    static let batch: TimeInterval = 60
 }
 
 enum UITestWait {
@@ -79,5 +81,36 @@ extension XCUIElement {
     ) {
         requireExists(timeout: timeout, message: message, file: file, line: line)
         click()
+    }
+
+    /// Switch and checkbox values. macOS reports `1`/`0` or `on`/`off`.
+    var switchIsOn: Bool? {
+        let raw = (value.map { "\($0)" } ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch raw {
+        case "1", "on", "true":
+            return true
+        case "0", "off", "false":
+            return false
+        default:
+            return nil
+        }
+    }
+
+    /// The Settings bindings write on the next main-actor turn, so poll the value.
+    func waitUntilSwitch(
+        isOn expected: Bool,
+        timeout: TimeInterval = UITestTimeout.standard,
+        message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if switchIsOn == expected {
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTFail("\(message) Value was \(value.map { "\($0)" } ?? "nil").", file: file, line: line)
     }
 }
