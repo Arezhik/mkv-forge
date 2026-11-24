@@ -46,6 +46,11 @@ struct BottomBarComponent {
     /// The caption (`1 .mka saved`) is identifier `batchProgressCaption`.
     /// The caption must equal `expectedCaption`. `contains` would let `11 .mka saved`
     /// pass a check for `1 .mka saved`.
+    ///
+    /// The sentence is identifier `batchProgress` (a text behind the bar).
+    /// An NSProgressIndicator with the same label exposes `value` as `""`, so a
+    /// candidate counts only when its value, label, or static-text child equals
+    /// `expectedValue`.
     func assertProgress(
         value expectedValue: String,
         caption expectedCaption: String,
@@ -53,18 +58,31 @@ struct BottomBarComponent {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        guard let progress = UITestWait.firstExisting(progressCandidates(), timeout: timeout) else {
-            XCTFail("Batch progress never showed up", file: file, line: line)
-            return
-        }
         let deadline = Date().addingTimeInterval(timeout)
-        var observed = Self.stringValue(progress)
+        var observed = ""
+        var sawCandidate = false
         while Date() < deadline {
-            observed = Self.stringValue(progress)
-            if observed == expectedValue {
+            let present = progressCandidates(expectedValue: expectedValue).filter(\.exists)
+            if !present.isEmpty {
+                sawCandidate = true
+            }
+            if present.contains(where: { Self.exposedProgress($0, expected: expectedValue) == expectedValue }) {
+                observed = expectedValue
                 break
             }
+            observed = ""
+            for element in present {
+                let text = Self.exposedProgress(element, expected: expectedValue)
+                if !text.isEmpty {
+                    observed = text
+                    break
+                }
+            }
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        if !sawCandidate {
+            XCTFail("Batch progress never showed up", file: file, line: line)
+            return
         }
         XCTAssertEqual(observed, expectedValue, "Batch progress value", file: file, line: line)
 
@@ -116,12 +134,17 @@ struct BottomBarComponent {
         UITestQuery.identified("bottomSummary", in: app, types: [.staticText, .group, .other])
     }
 
-    private func progressCandidates() -> [XCUIElement] {
-        let predicate = NSPredicate(format: "label == %@", "Batch progress")
+    /// Static text first. The progress indicator's label can match while its
+    /// value stays empty, so it is not the only candidate.
+    private func progressCandidates(expectedValue: String) -> [XCUIElement] {
+        let predicate = NSPredicate(
+            format: "identifier == %@ OR label == %@ OR value == %@",
+            "batchProgress", "Batch progress", expectedValue
+        )
         return UITestQuery.matching(
             predicate,
             in: app,
-            types: [.progressIndicator, .group, .other]
+            types: [.staticText, .group, .other, .progressIndicator]
         )
     }
 
@@ -151,12 +174,20 @@ struct BottomBarComponent {
         return ""
     }
 
-    private static func stringValue(_ element: XCUIElement) -> String {
-        if let text = element.value as? String {
+    /// The progress sentence. An empty indicator value is not that sentence.
+    /// A static-text child of this element counts. Other elements do not.
+    private static func exposedProgress(_ element: XCUIElement, expected: String) -> String {
+        if let text = element.value as? String, text == expected {
             return text
         }
-        if let value = element.value {
-            return "\(value)"
+        if element.label == expected {
+            return element.label
+        }
+        if element.staticTexts.matchingLabelOrValue(equalTo: expected).firstMatch.exists {
+            return expected
+        }
+        if let text = element.value as? String, !text.isEmpty {
+            return text
         }
         return ""
     }

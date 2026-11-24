@@ -194,7 +194,10 @@ struct QueueRowComponent {
     }
 
     /// Clicks `Unmatch <stem> from <audioFileName>`. `stem` is the video base name,
-    /// such as `X Extended`. The button title on screen is `Unmatch`.
+    /// such as `X Extended`. The on-screen title is `Unmatch`.
+    ///
+    /// Link-style buttons are `links`, not `buttons`. The accessible name is the
+    /// full label, so a control titled only `Unmatch` does not match.
     func clickUnmatch(
         audioFileName: String,
         timeout: TimeInterval = UITestTimeout.long,
@@ -202,11 +205,12 @@ struct QueueRowComponent {
         line: UInt = #line
     ) {
         let label = "Unmatch \(stem) from \(audioFileName)"
-        guard let button = UITestWait.firstExisting([
-            app.buttons.matching(named(label)).firstMatch,
-            app.menuButtons.matching(named(label)).firstMatch,
-        ], timeout: timeout) else {
-            XCTFail("\(label) never showed up. \(queueRowSummary())", file: file, line: line)
+        guard let button = UITestWait.firstExisting(unmatchCandidates(label: label), timeout: timeout) else {
+            XCTFail(
+                "\(label) never showed up. \(queueRowSummary()) Unmatch controls: \(unmatchSummary())",
+                file: file,
+                line: line
+            )
             return
         }
         button.click()
@@ -291,6 +295,32 @@ struct QueueRowComponent {
     private func describe(_ element: XCUIElement) -> String {
         let value = element.value.map { "\($0)" } ?? ""
         return "label='\(element.label)' value='\(value)'"
+    }
+
+    /// Exact accessible name. Identifier alone is not enough: every Unmatch
+    /// button shares `unmatchButton`, and the label names the pair.
+    private func unmatchCandidates(label: String) -> [XCUIElement] {
+        let exact = NSPredicate(
+            format: "label == %@ OR value == %@ OR title == %@",
+            label, label, label
+        )
+        return UITestQuery.matching(exact, in: app, types: [.button, .link, .menuButton, .group])
+    }
+
+    private func unmatchSummary() -> String {
+        let predicate = NSPredicate(
+            format: "identifier == %@ OR label CONTAINS %@ OR title CONTAINS %@ OR value CONTAINS %@",
+            "unmatchButton", "Unmatch", "Unmatch", "Unmatch"
+        )
+        let hits = UITestQuery.all(
+            matching: predicate,
+            in: app,
+            types: [.button, .link, .menuButton, .group]
+        )
+        if hits.isEmpty {
+            return "(none)"
+        }
+        return hits.prefix(6).map { describe($0) }.joined(separator: "; ")
     }
 
     private func named(_ name: String) -> NSPredicate {

@@ -501,6 +501,10 @@ private struct ReasonCell: View {
                 .accessibilityHint(MatchOnMKAName.chooseMatchHint)
             }
             if display.showsUnmatch {
+                // `.buttonStyle(.link)` is an XCUIElementTypeLink, and a Table
+                // cell often omits that element. The on-screen title stays
+                // "Unmatch". The accessible control is a button whose label is
+                // `Unmatch X Extended from X.mka`.
                 Button("Unmatch") {
                     let rowID = row.id
                     Task { @MainActor in model.unmatch(rowID: rowID) }
@@ -509,6 +513,17 @@ private struct ReasonCell: View {
                 .controlSize(.small)
                 .disabled(locked)
                 .accessibilityLabel(display.unmatchLabel)
+                .accessibilityIdentifier("unmatchButton")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityRepresentation {
+                    Button(display.unmatchLabel) {
+                        let rowID = row.id
+                        Task { @MainActor in model.unmatch(rowID: rowID) }
+                    }
+                    .disabled(locked)
+                    .accessibilityIdentifier("unmatchButton")
+                    .accessibilityLabel(display.unmatchLabel)
+                }
             }
         }
     }
@@ -624,14 +639,24 @@ private struct BottomBar: View {
                         .accessibilityIdentifier("batchProgressCaption")
                         .accessibilityLabel(column.caption)
                         .accessibilityHidden(column.caption.isEmpty)
-                    // Ignore the indicator's own value (a fraction) so VoiceOver and
-                    // XCUITest read `1 of 1 complete`. The caption stays a sibling.
-                    ProgressView(value: Double(column.completed), total: Double(max(column.total, 1)))
-                        .progressViewStyle(.linear)
-                        .controlSize(.small)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Batch progress")
-                        .accessibilityValue(StatusLines.progressAccessibilityValue(column))
+                    // The indicator is an NSProgressIndicator. XCTest reads its
+                    // value as "" even after accessibilityValue is set. A real
+                    // text in this stack uses the scan-caption pattern: label
+                    // `Batch progress`, value `1 of 1 complete`. It sits under
+                    // the bar. The caption above stays a sibling.
+                    ZStack {
+                        Text(StatusLines.progressAccessibilityValue(column))
+                            .font(.system(size: 1))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: 4, alignment: .leading)
+                            .accessibilityIdentifier("batchProgress")
+                            .accessibilityLabel("Batch progress")
+                            .accessibilityValue(StatusLines.progressAccessibilityValue(column))
+                        ProgressView(value: Double(column.completed), total: Double(max(column.total, 1)))
+                            .progressViewStyle(.linear)
+                            .controlSize(.small)
+                            .accessibilityHidden(true)
+                    }
                 }
                 .frame(width: 152)
             }

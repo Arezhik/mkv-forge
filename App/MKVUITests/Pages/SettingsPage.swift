@@ -34,10 +34,12 @@ final class SettingsPage: BasePage {
         return SettingsPage(app: app)
     }
 
-    /// Section header "MKVToolNix". Exact, so "Get MKVToolNix, opens in browser" does not pass.
-    /// SwiftUI `Text` may expose the header as `value`.
+    /// Section header "MKVToolNix". Exact label, value, title, or identifier
+    /// `mkvToolNixSection`. A grouped Form header is often a group title, not a
+    /// static text. Exact, so "Get MKVToolNix, opens in browser" does not pass.
     var mkvToolNixSection: XCUIElement {
-        app.staticTexts.matchingLabelOrValue(equalTo: "MKVToolNix").firstMatch
+        let candidates = mkvToolNixSectionCandidates()
+        return candidates.first { $0.exists } ?? candidates[0]
     }
 
     var sendNotificationToggle: XCUIElement {
@@ -88,12 +90,14 @@ final class SettingsPage: BasePage {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        mkvToolNixSection.requireExists(
-            timeout: timeout,
-            message: "The MKVToolNix section never showed up",
-            file: file,
-            line: line
-        )
+        guard UITestWait.firstExisting(mkvToolNixSectionCandidates(), timeout: timeout) != nil else {
+            XCTFail(
+                "The MKVToolNix section never showed up. \(Self.mkvToolNixDiagnostics(app: app, root: root))",
+                file: file,
+                line: line
+            )
+            return
+        }
     }
 
     func requireMatchOnMKANameToggle(
@@ -220,6 +224,37 @@ final class SettingsPage: BasePage {
             XCTFail("Choose… never showed up", file: file, line: line)
             return
         }
+    }
+
+    /// Identifier, or the whole label, value, or title. Not a contains match.
+    private func mkvToolNixSectionCandidates() -> [XCUIElement] {
+        let exact = NSPredicate(
+            format: "identifier == %@ OR label == %@ OR value == %@ OR title == %@",
+            "mkvToolNixSection", "MKVToolNix", "MKVToolNix", "MKVToolNix"
+        )
+        let types: [XCUIElement.ElementType] = [.staticText, .group, .other, .button]
+        var candidates = UITestQuery.matching(exact, in: app, types: types)
+        if root.exists {
+            candidates += UITestQuery.matching(exact, in: root, types: types)
+        }
+        return candidates
+    }
+
+    /// Headings that mention MKV, for a failed section check. Not the assertion.
+    private static func mkvToolNixDiagnostics(app: XCUIApplication, root: XCUIElement) -> String {
+        let predicate = NSPredicate(
+            format: "identifier == %@ OR label CONTAINS %@ OR value CONTAINS %@ OR title CONTAINS %@",
+            "mkvToolNixSection", "MKV", "MKV", "MKV"
+        )
+        let types: [XCUIElement.ElementType] = [.staticText, .group, .other, .link, .button]
+        let hits = UITestQuery.all(matching: predicate, in: app, types: types)
+        let described = hits.prefix(8).map { element -> String in
+            let value = element.value.map { "\($0)" } ?? ""
+            return "label='\(element.label)' title='\(element.title)' value='\(value)' id='\(element.identifier)'"
+        }
+        let title = root.exists ? root.title : "(no window whose title contains Settings)"
+        let listed = described.isEmpty ? "(none)" : described.joined(separator: "; ")
+        return "Window title '\(title)'. MKV elements: \(listed)"
     }
 
     private static func windowShowsNavigationTitle(_ window: XCUIElement) -> Bool {

@@ -57,7 +57,16 @@ struct SettingsView: View {
                     }
                 }
             } header: {
+                // Grouped Form headers are a group title on macOS, not a static
+                // text, and the form may uppercase them. The label and identifier
+                // stay the exact section name.
                 Text("MKVToolNix")
+                    .textCase(nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("mkvToolNixSection")
+                    .accessibilityLabel("MKVToolNix")
+                    .accessibilityAddTraits(.isHeader)
             } footer: {
                 if model.toolStatus != .notFound {
                     Text(ExternalTool.searchDescription())
