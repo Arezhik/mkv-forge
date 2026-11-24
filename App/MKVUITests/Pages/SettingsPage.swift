@@ -8,8 +8,9 @@ import XCTest
 //
 // Do not use `app.windows["MKVForge Settings"]` as the only lookup. The window title
 // may be "Settings" or empty, with the navigation title as a static text.
-// Controls are `app.switches`, `app.checkBoxes`, `app.buttons`, and `app.staticTexts`.
-// `descendants(matching: .any)` times out on macOS.
+// Controls are this window's `switches`, `checkBoxes`, `buttons`, and `staticTexts`.
+// Do not query `app.descendants`. That snapshot includes the main window and times out
+// on macOS ("Timed out while evaluating UI query"), including `.other`.
 
 /// Settings window. Locators assume the window is up, except `open(in:)`.
 @MainActor
@@ -68,9 +69,8 @@ final class SettingsPage: BasePage {
     }
 
     /// Navigation title `MKVForge Settings` is up, either as the window title
-    /// or as a static text. Does not walk the window tree.
+    /// or as a static text in that window. Does not query the whole app.
     func waitForSettingsChrome(timeout: TimeInterval = UITestTimeout.standard) {
-        let navigationTitle = app.staticTexts.matchingLabelOrValue(equalTo: "MKVForge Settings").firstMatch
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if Self.windowShowsNavigationTitle(root) || navigationTitle.exists {
@@ -92,7 +92,7 @@ final class SettingsPage: BasePage {
     ) {
         guard UITestWait.firstExisting(mkvToolNixSectionCandidates(), timeout: timeout) != nil else {
             XCTFail(
-                "The MKVToolNix section never showed up. \(Self.mkvToolNixDiagnostics(app: app, root: root))",
+                "The MKVToolNix section never showed up. \(Self.mkvToolNixDiagnostics(root: root))",
                 file: file,
                 line: line
             )
@@ -184,10 +184,10 @@ final class SettingsPage: BasePage {
         line: UInt = #line
     ) {
         let foundPrefix = "Found \u{00B7}"
-        let found = app.staticTexts.matching(
+        let found = root.staticTexts.matching(
             NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", foundPrefix, foundPrefix)
         ).firstMatch
-        let missing = app.staticTexts.matchingLabelOrValue(equalTo: "Not found").firstMatch
+        let missing = root.staticTexts.matchingLabelOrValue(equalTo: "Not found").firstMatch
         guard UITestWait.firstExisting([found, missing], timeout: timeout) != nil else {
             XCTFail(
                 "The mkvmerge status did not show Found · or Not found",
@@ -227,27 +227,35 @@ final class SettingsPage: BasePage {
     }
 
     /// Identifier, or the whole label, value, or title. Not a contains match.
+    /// The subscript matches identifier, label, or title and does not read `value`.
+    /// A grouped form header is often a group, not a static text. `.other` is omitted:
+    /// that snapshot times out. Queries stay on `root` so they re-resolve while the
+    /// window is opening. They are not gated on `root.exists` at creation.
     private func mkvToolNixSectionCandidates() -> [XCUIElement] {
-        let exact = NSPredicate(
-            format: "identifier == %@ OR label == %@ OR value == %@ OR title == %@",
-            "mkvToolNixSection", "MKVToolNix", "MKVToolNix", "MKVToolNix"
-        )
-        let types: [XCUIElement.ElementType] = [.staticText, .group, .other, .button]
-        var candidates = UITestQuery.matching(exact, in: app, types: types)
-        if root.exists {
-            candidates += UITestQuery.matching(exact, in: root, types: types)
-        }
-        return candidates
+        let types: [XCUIElement.ElementType] = [.staticText, .group]
+        return UITestQuery.identified("mkvToolNixSection", in: root, types: types)
+            + UITestQuery.identified("MKVToolNix", in: root, types: types)
+            + [
+                root.staticTexts.matchingLabelOrValue(equalTo: "MKVToolNix").firstMatch,
+                root.groups.matchingLabelOrValue(equalTo: "MKVToolNix").firstMatch,
+            ]
+    }
+
+    /// The navigation title as a static text inside the Settings window.
+    /// `exists` re-evaluates, so the window can appear later.
+    private var navigationTitle: XCUIElement {
+        root.staticTexts.matchingLabelOrValue(equalTo: "MKVForge Settings").firstMatch
     }
 
     /// Headings that mention MKV, for a failed section check. Not the assertion.
-    private static func mkvToolNixDiagnostics(app: XCUIApplication, root: XCUIElement) -> String {
+    /// Stays on the Settings window. An app-wide `.other` snapshot times out.
+    private static func mkvToolNixDiagnostics(root: XCUIElement) -> String {
         let predicate = NSPredicate(
             format: "identifier == %@ OR label CONTAINS %@ OR value CONTAINS %@ OR title CONTAINS %@",
             "mkvToolNixSection", "MKV", "MKV", "MKV"
         )
-        let types: [XCUIElement.ElementType] = [.staticText, .group, .other, .link, .button]
-        let hits = UITestQuery.all(matching: predicate, in: app, types: types)
+        let types: [XCUIElement.ElementType] = [.staticText, .group, .link, .button]
+        let hits = root.exists ? UITestQuery.all(matching: predicate, in: root, types: types) : []
         let described = hits.prefix(8).map { element -> String in
             let value = element.value.map { "\($0)" } ?? ""
             return "label='\(element.label)' title='\(element.title)' value='\(value)' id='\(element.identifier)'"
@@ -263,15 +271,17 @@ final class SettingsPage: BasePage {
     }
 
     /// Switches and checkboxes only. A caption that contains the name must not pass
-    /// as the switch. `matchingLabelOrValue` reads the control's own label or value.
-    /// The finish switches include a subtitle in that label, so the match is
-    /// `containing` on the control itself, not a raw descendant `containing` query.
+    /// as the switch. Each settings switch sets `accessibilityLabel` to its name
+    /// (the subtitle is a hint), so `label CONTAINS` matches that name.
+    ///
+    /// Do not read `value` here. A switch's value is `1` or `0`, and
+    /// `value CONTAINS` makes the snapshot time out
+    /// ("Timed out while evaluating UI query").
     private func controlCandidates(named name: String) -> [XCUIElement] {
-        [
-            app.switches.matchingLabelOrValue(containing: name).firstMatch,
-            app.checkBoxes.matchingLabelOrValue(containing: name).firstMatch,
-            app.switches.matching(NSPredicate(format: "title == %@", name)).firstMatch,
-            app.checkBoxes.matching(NSPredicate(format: "title == %@", name)).firstMatch,
+        let named = NSPredicate(format: "label CONTAINS %@ OR title == %@", name, name)
+        return [
+            root.switches.matching(named).firstMatch,
+            root.checkBoxes.matching(named).firstMatch,
         ]
     }
 
@@ -305,7 +315,7 @@ final class SettingsPage: BasePage {
         let exactLabel = NSPredicate(format: "label == %@", name)
         let labelOrTitle = NSPredicate(format: "label == %@ OR title == %@", name, name)
         return [
-            app.buttons.matching(exactLabel).firstMatch,
+            root.buttons.matching(exactLabel).firstMatch,
             root.buttons.matching(labelOrTitle).firstMatch,
         ]
     }

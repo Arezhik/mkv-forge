@@ -12,9 +12,12 @@ enum UITestTimeout {
     static let batch: TimeInterval = 60
 }
 
-/// Shallow locators. `descendants(matching: .any)` snapshots the whole tree and
-/// times out on macOS ("Timed out while evaluating UI query"). Each candidate is
-/// one element type: buttons, staticTexts, groups, and so on.
+/// Shallow locators. `descendants(matching: .any)` and `.other` snapshot the
+/// whole tree and time out on macOS ("Timed out while evaluating UI query").
+/// Each candidate is one element type on one window: buttons, staticTexts,
+/// groups, switches. A predicate that reads `value` has to be that narrow too.
+/// `exists` records a test failure when the snapshot times out. It does not
+/// return false.
 enum UITestQuery {
     /// `XCUIElementQuery` subscript matches identifier, label, or title.
     @MainActor
@@ -75,6 +78,10 @@ enum UITestWait {
     /// Returns the first element that exists, polling until `timeout`.
     /// Use this when several locators can match the same control (an identifier
     /// that arrives in a later PR, then a label fallback).
+    ///
+    /// Each element must already be one element type on one window. Pass the
+    /// Settings window, not `XCUIApplication`: an app-wide `.other` or `value`
+    /// query snapshots the main window as well and fails here.
     @MainActor
     static func firstExisting(_ elements: [XCUIElement], timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
@@ -97,6 +104,9 @@ extension XCUIElementQuery {
     /// SwiftUI `Text` on macOS exposes its string as `value`. `label` is often empty.
     /// `containing` searches descendants, so a `StaticText` never matches
     /// `label CONTAINS`. Use `matching` with both keys.
+    ///
+    /// Not for switches or checkboxes. Their `value` is `1` or `0`, and
+    /// `value CONTAINS` times out the snapshot.
     func matchingLabelOrValue(containing text: String) -> XCUIElementQuery {
         matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text))
     }

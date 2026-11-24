@@ -110,10 +110,13 @@ struct SettingsView: View {
                         Text("Only when MKVForge isn't the active app.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                 }
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+                .accessibilityLabel("Send a notification")
+                .accessibilityHint("Only when MKVForge isn't the active app.")
 
                 if model.settings.notifyWhenFinished && model.notificationsBlocked {
                     HStack(spacing: 8) {
@@ -137,10 +140,13 @@ struct SettingsView: View {
                         Text("Once, only when MKVForge is in the background.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                 }
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+                .accessibilityLabel("Bounce the Dock icon")
+                .accessibilityHint("Once, only when MKVForge is in the background.")
             }
         }
         .formStyle(.grouped)
