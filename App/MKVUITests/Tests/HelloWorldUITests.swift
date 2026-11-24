@@ -14,7 +14,7 @@ final class HelloWorldUITests: BaseUITest {
     func testAppOpensMainWindow() throws {
         let page = SplitPage(app: app)
 
-        XCTContext.runActivity(named: "Main window and Split folders") { _ in
+        XCTContext.runActivity(named: "Main window and Split folders") { _ -> Void in
             page.waitForSplitChrome()
         }
 
@@ -30,7 +30,7 @@ final class HelloWorldUITests: BaseUITest {
             try page.clickScanOrSkip()
         }
 
-        XCTContext.runActivity(named: "Queue shows the sample row") { _ in
+        XCTContext.runActivity(named: "Queue shows the sample row") { _ -> Void in
             // #44: match label OR value with `matching`, never `containing`.
             // The failure message lists observed row labels and values.
             page.queueRow(stem: "sample").requireExists()

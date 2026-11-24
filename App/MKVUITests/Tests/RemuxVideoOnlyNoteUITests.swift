@@ -35,7 +35,7 @@ final class RemuxVideoOnlyNoteUITests: BaseUITest {
             try remux.clickScanOrSkip()
         }
 
-        XCTContext.runActivity(named: "Movie is Ready and uses video only") { _ in
+        XCTContext.runActivity(named: "Movie is Ready and uses video only") { _ -> Void in
             remux.queueRow(stem: "Movie").requireExactLabel(
                 "Movie, Ready, Uses video only, ignores 1 audio, 1 subtitle"
             )

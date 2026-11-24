@@ -12,7 +12,7 @@ final class ToolMissingBannerUITests: BaseUITest {
     func testMissingMKVMergeShowsBannerAndDoesNotScan() throws {
         let page = SplitPage(app: app)
 
-        XCTContext.runActivity(named: "Split chrome") { _ in
+        XCTContext.runActivity(named: "Split chrome") { _ -> Void in
             page.waitForSplitChrome()
         }
 

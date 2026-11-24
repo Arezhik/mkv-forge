@@ -17,7 +17,7 @@ final class SplitStillChangingUITests: BaseUITest {
     func testFileTouchedInTheLastMinuteCannotBeReady() throws {
         let page = SplitPage(app: app)
 
-        XCTContext.runActivity(named: "Split chrome") { _ in
+        XCTContext.runActivity(named: "Split chrome") { _ -> Void in
             page.waitForSplitChrome()
         }
 
@@ -30,7 +30,7 @@ final class SplitStillChangingUITests: BaseUITest {
             try page.clickScanOrSkip()
         }
 
-        XCTContext.runActivity(named: "sample is still changing") { _ in
+        XCTContext.runActivity(named: "sample is still changing") { _ -> Void in
             page.queueRow(stem: "sample").requireExactLabel(
                 "sample, Issue, Still changing (modified in the last minute)"
             )

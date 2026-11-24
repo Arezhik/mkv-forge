@@ -70,7 +70,7 @@ final class RemuxExistingOutputUITests: BaseUITest {
             )
         }
 
-        XCTContext.runActivity(named: "keep.mkv is unchanged, fresh.mkv is written, sources stay") { _ in
+        try XCTContext.runActivity(named: "keep.mkv is unchanged, fresh.mkv is written, sources stay") { _ -> Void in
             XCTAssertEqual(try Data(contentsOf: keepOutput), keepBefore)
             let freshOutput = fixtures.output.appendingPathComponent("fresh.mkv")
             XCTAssertGreaterThan(fixtures.byteCount(at: freshOutput) ?? 0, 0, "fresh.mkv is missing or empty")

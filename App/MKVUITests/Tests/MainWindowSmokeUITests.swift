@@ -10,7 +10,7 @@ final class MainWindowSmokeUITests: BaseUITest {
     func testMainWindowShowsSeededSplitFolders() {
         let page = SplitPage(app: app)
 
-        XCTContext.runActivity(named: "Main window appears") { _ in
+        XCTContext.runActivity(named: "Main window appears") { _ -> Void in
             page.waitForSplitChrome()
         }
 

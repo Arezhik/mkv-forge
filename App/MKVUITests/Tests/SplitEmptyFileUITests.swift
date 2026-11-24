@@ -13,7 +13,7 @@ final class SplitEmptyFileUITests: BaseUITest {
     func testSettledEmptyMKVIsOneIssueAndSplitStaysDisabled() throws {
         let page = SplitPage(app: app)
 
-        XCTContext.runActivity(named: "Split chrome") { _ in
+        XCTContext.runActivity(named: "Split chrome") { _ -> Void in
             page.waitForSplitChrome()
         }
 
@@ -29,7 +29,7 @@ final class SplitEmptyFileUITests: BaseUITest {
             try page.clickScanOrSkip()
         }
 
-        XCTContext.runActivity(named: "Empty file is one Issue") { _ in
+        XCTContext.runActivity(named: "Empty file is one Issue") { _ -> Void in
             page.queueRow(stem: "sample").requireExactLabel("sample, Issue, Empty file (0 bytes)")
         }
 

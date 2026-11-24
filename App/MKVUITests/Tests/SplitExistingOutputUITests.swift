@@ -30,7 +30,7 @@ final class SplitExistingOutputUITests: BaseUITest {
 
         let page = SplitPage(app: app)
 
-        XCTContext.runActivity(named: "Split chrome") { _ in
+        XCTContext.runActivity(named: "Split chrome") { _ -> Void in
             page.waitForSplitChrome()
         }
 
@@ -67,7 +67,7 @@ final class SplitExistingOutputUITests: BaseUITest {
             )
         }
 
-        XCTContext.runActivity(named: "keep.mka is unchanged and fresh.mka is written") { _ in
+        try XCTContext.runActivity(named: "keep.mka is unchanged and fresh.mka is written") { _ -> Void in
             XCTAssertEqual(try Data(contentsOf: keepOutput), keepBefore)
             let freshOutput = fixtures.output.appendingPathComponent("fresh.mka")
             XCTAssertGreaterThan(fixtures.byteCount(at: freshOutput) ?? 0, 0, "fresh.mka is missing or empty")

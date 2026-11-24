@@ -41,7 +41,7 @@ final class SplitReadyUITests: BaseUITest {
             page.clickPrimaryAction(titled: "Split")
         }
 
-        XCTContext.runActivity(named: "Row finishes Done") { _ in
+        XCTContext.runActivity(named: "Row finishes Done") { _ -> Void in
             page.queueRow(stem: "sample").requireExactLabel("sample, Done", timeout: UITestTimeout.batch)
         }
 
@@ -55,7 +55,7 @@ final class SplitReadyUITests: BaseUITest {
             page.bottomBar.assertShowInFinderVisible(timeout: UITestTimeout.batch)
         }
 
-        XCTContext.runActivity(named: "sample.mka is written and the source is unchanged") { _ in
+        try XCTContext.runActivity(named: "sample.mka is written and the source is unchanged") { _ -> Void in
             let output = fixtures.output.appendingPathComponent("sample.mka")
             let written = fixtures.byteCount(at: output)
             XCTAssertGreaterThan(written ?? 0, 0, "sample.mka is missing or empty")
@@ -84,7 +84,7 @@ final class SplitReadyUITests: BaseUITest {
     private func scanUntilReady() throws -> SplitPage {
         let page = SplitPage(app: app)
 
-        XCTContext.runActivity(named: "Split chrome") { _ in
+        XCTContext.runActivity(named: "Split chrome") { _ -> Void in
             page.waitForSplitChrome()
         }
 
@@ -100,7 +100,7 @@ final class SplitReadyUITests: BaseUITest {
             try page.clickScanOrSkip()
         }
 
-        XCTContext.runActivity(named: "sample is Ready") { _ in
+        XCTContext.runActivity(named: "sample is Ready") { _ -> Void in
             page.queueRow(stem: "sample").requireExactLabel("sample, Ready")
         }
 

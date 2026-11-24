@@ -32,7 +32,7 @@ final class RemuxRunUITests: BaseUITest {
             remux.clickPrimaryAction(titled: "Remux")
         }
 
-        XCTContext.runActivity(named: "Row finishes Done") { _ in
+        XCTContext.runActivity(named: "Row finishes Done") { _ -> Void in
             remux.queueRow(stem: videoStem).requireExactLabel(
                 "\(videoStem), Done",
                 timeout: UITestTimeout.batch
@@ -49,7 +49,7 @@ final class RemuxRunUITests: BaseUITest {
             remux.bottomBar.assertShowInFinderVisible(timeout: UITestTimeout.batch)
         }
 
-        XCTContext.runActivity(named: "Output mkv is written and both sources stay") { _ in
+        try XCTContext.runActivity(named: "Output mkv is written and both sources stay") { _ -> Void in
             let output = fixtures.output.appendingPathComponent(Self.videoFileName)
             XCTAssertGreaterThan(fixtures.byteCount(at: output) ?? 0, 0, "The remuxed mkv is missing or empty")
             XCTAssertEqual(try Data(contentsOf: videoURL), videoBefore)
@@ -64,7 +64,7 @@ final class RemuxRunUITests: BaseUITest {
             page.switchToRemux()
         }
 
-        XCTContext.runActivity(named: "Remux folders are on screen") { _ in
+        XCTContext.runActivity(named: "Remux folders are on screen") { _ -> Void in
             remux.waitForRemuxFolders()
         }
 
@@ -84,7 +84,7 @@ final class RemuxRunUITests: BaseUITest {
             try remux.clickScanOrSkip()
         }
 
-        XCTContext.runActivity(named: "Prefix pair is Ready") { _ in
+        XCTContext.runActivity(named: "Prefix pair is Ready") { _ -> Void in
             remux.queueRow(stem: videoStem).requireExactLabel("\(videoStem), Ready")
         }
 

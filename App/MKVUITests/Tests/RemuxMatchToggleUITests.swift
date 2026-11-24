@@ -46,7 +46,7 @@ final class RemuxMatchToggleUITests: BaseUITest {
             settings.waitUntilSwitch(named: "Match on MKA Name", isOn: false)
         }
 
-        XCTContext.runActivity(named: "Return to the MKVForge window") { _ in
+        XCTContext.runActivity(named: "Return to the MKVForge window") { _ -> Void in
             remux.activateMainWindow()
         }
 
