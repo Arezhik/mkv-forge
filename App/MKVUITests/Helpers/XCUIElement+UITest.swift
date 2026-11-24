@@ -12,6 +12,65 @@ enum UITestTimeout {
     static let batch: TimeInterval = 60
 }
 
+/// Shallow locators. `descendants(matching: .any)` snapshots the whole tree and
+/// times out on macOS ("Timed out while evaluating UI query"). Each candidate is
+/// one element type: buttons, staticTexts, groups, and so on.
+enum UITestQuery {
+    /// `XCUIElementQuery` subscript matches identifier, label, or title.
+    @MainActor
+    static func identified(
+        _ identifier: String,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> [XCUIElement] {
+        types.map { root.descendants(matching: $0)[identifier] }
+    }
+
+    @MainActor
+    static func matching(
+        _ predicate: NSPredicate,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> [XCUIElement] {
+        types.map { root.descendants(matching: $0).matching(predicate).firstMatch }
+    }
+
+    @MainActor
+    static func count(
+        matching predicate: NSPredicate,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> Int {
+        types.reduce(0) { partial, type in
+            partial + root.descendants(matching: type).matching(predicate).count
+        }
+    }
+
+    @MainActor
+    static func all(
+        matching predicate: NSPredicate,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> [XCUIElement] {
+        types.flatMap { root.descendants(matching: $0).matching(predicate).allElementsBoundByIndex }
+    }
+}
+
+@MainActor
+extension XCUIApplication {
+    /// The main window while Settings may also be open.
+    ///
+    /// `windows["MKVForge"]` checks identifier or title. SwiftUI
+    /// `Window("MKVForge", id: "main")` fails that check when the title is
+    /// hidden and the identifier is an internal id. Do not hardcode that id.
+    /// An empty title still matches: `NOT ("" CONTAINS[c] "Settings")` is true.
+    var mainWindow: XCUIElement {
+        windows.matching(
+            NSPredicate(format: "NOT (title CONTAINS[c] %@)", "Settings")
+        ).firstMatch
+    }
+}
+
 enum UITestWait {
     /// Returns the first element that exists, polling until `timeout`.
     /// Use this when several locators can match the same control (an identifier

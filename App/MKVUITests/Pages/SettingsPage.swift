@@ -6,15 +6,19 @@ import XCTest
 // The navigation title is "MKVForge Settings". The pane has an MKVToolNix section and
 // "When a batch finishes" toggles ("Send a notification", "Bounce the Dock icon").
 //
-// If the menu title differs by OS, construct `SettingsPage(app:)` once the window
-// is already up and use the locators below. `open(in:)` is the menu path.
+// Do not use `app.windows["MKVForge Settings"]` as the only lookup. The window title
+// may be "Settings" or empty, with the navigation title as a static text.
+// Controls are `app.switches`, `app.checkBoxes`, `app.buttons`, and `app.staticTexts`.
+// `descendants(matching: .any)` times out on macOS.
 
 /// Settings window. Locators assume the window is up, except `open(in:)`.
 @MainActor
 final class SettingsPage: BasePage {
+    /// A window whose title or label contains Settings. Not the exact title
+    /// `MKVForge Settings`, which the Settings scene does not always expose.
     override var root: XCUIElement {
         app.windows.matching(
-            NSPredicate(format: "title CONTAINS %@ OR label CONTAINS %@", "Settings", "Settings")
+            NSPredicate(format: "title CONTAINS[c] %@ OR label CONTAINS[c] %@", "Settings", "Settings")
         ).firstMatch
     }
 
@@ -33,7 +37,7 @@ final class SettingsPage: BasePage {
     /// Section header "MKVToolNix". Exact, so "Get MKVToolNix, opens in browser" does not pass.
     /// SwiftUI `Text` may expose the header as `value`.
     var mkvToolNixSection: XCUIElement {
-        root.descendants(matching: .any).matchingLabelOrValue(equalTo: "MKVToolNix").firstMatch
+        app.staticTexts.matchingLabelOrValue(equalTo: "MKVToolNix").firstMatch
     }
 
     var sendNotificationToggle: XCUIElement {
@@ -50,34 +54,32 @@ final class SettingsPage: BasePage {
     }
 
     func clickSendNotification() {
-        sendNotificationToggle.clickWhenReady(message: "The Send a notification toggle never showed up")
+        clickControl(named: "Send a notification", message: "The Send a notification toggle never showed up")
     }
 
     func clickBounceDockIcon() {
-        bounceDockIconToggle.clickWhenReady(message: "The Bounce the Dock icon toggle never showed up")
+        clickControl(named: "Bounce the Dock icon", message: "The Bounce the Dock icon toggle never showed up")
     }
 
     func clickMatchOnMKAName() {
-        matchOnMKANameToggle.clickWhenReady(message: "The Match on MKA Name toggle never showed up")
+        clickControl(named: "Match on MKA Name", message: "The Match on MKA Name toggle never showed up")
     }
 
-    /// Window title contains Settings, and the navigation title `MKVForge Settings` is up.
+    /// Navigation title `MKVForge Settings` is up, either as the window title
+    /// or as a static text. Does not walk the window tree.
     func waitForSettingsChrome(timeout: TimeInterval = UITestTimeout.standard) {
-        let window = root.requireExists(timeout: timeout, message: "The Settings window never showed up")
+        let navigationTitle = app.staticTexts.matchingLabelOrValue(equalTo: "MKVForge Settings").firstMatch
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if Self.showsSettingsTitle(window), Self.showsNavigationTitle(window) {
+            if Self.windowShowsNavigationTitle(root) || navigationTitle.exists {
                 return
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
-        XCTAssertTrue(
-            Self.showsSettingsTitle(window),
-            "The Settings window title was '\(window.title)' label '\(window.label)'"
-        )
-        XCTAssertTrue(
-            Self.showsNavigationTitle(window),
-            "The navigation title MKVForge Settings never showed up. Window title '\(window.title)'."
+        let title = root.exists ? root.title : "(no window whose title contains Settings)"
+        let label = root.exists ? root.label : ""
+        XCTFail(
+            "The navigation title MKVForge Settings never showed up. Window title '\(title)' label '\(label)'."
         )
     }
 
@@ -99,9 +101,10 @@ final class SettingsPage: BasePage {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        matchOnMKANameToggle.requireExists(
-            timeout: timeout,
+        requireControl(
+            named: "Match on MKA Name",
             message: "The Match on MKA Name switch never showed up",
+            timeout: timeout,
             file: file,
             line: line
         )
@@ -112,9 +115,10 @@ final class SettingsPage: BasePage {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        sendNotificationToggle.requireExists(
-            timeout: timeout,
+        requireControl(
+            named: "Send a notification",
             message: "The Send a notification switch never showed up",
+            timeout: timeout,
             file: file,
             line: line
         )
@@ -125,9 +129,10 @@ final class SettingsPage: BasePage {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        bounceDockIconToggle.requireExists(
-            timeout: timeout,
+        requireControl(
+            named: "Bounce the Dock icon",
             message: "The Bounce the Dock icon switch never showed up",
+            timeout: timeout,
             file: file,
             line: line
         )
@@ -175,10 +180,10 @@ final class SettingsPage: BasePage {
         line: UInt = #line
     ) {
         let foundPrefix = "Found \u{00B7}"
-        let found = root.descendants(matching: .any).matching(
+        let found = app.staticTexts.matching(
             NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", foundPrefix, foundPrefix)
         ).firstMatch
-        let missing = root.descendants(matching: .any).matchingLabelOrValue(equalTo: "Not found").firstMatch
+        let missing = app.staticTexts.matchingLabelOrValue(equalTo: "Not found").firstMatch
         guard UITestWait.firstExisting([found, missing], timeout: timeout) != nil else {
             XCTFail(
                 "The mkvmerge status did not show Found · or Not found",
@@ -196,63 +201,77 @@ final class SettingsPage: BasePage {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let button = root.buttons.matching(
-            NSPredicate(format: "label == %@ OR title == %@", "Use Automatic", "Use Automatic")
-        ).firstMatch
-        button.requireExists(
-            timeout: timeout,
-            message: "Use Automatic never showed up",
-            file: file,
-            line: line
-        )
+        guard let button = UITestWait.firstExisting(buttonCandidates(titled: "Use Automatic"), timeout: timeout) else {
+            XCTFail("Use Automatic never showed up", file: file, line: line)
+            return
+        }
         XCTAssertFalse(button.isEnabled, "Use Automatic enables only after a chosen override", file: file, line: line)
     }
 
     /// Present so the row is on screen. Does not click it. The ellipsis is U+2026.
+    /// Label equality skips the folder-panel buttons, whose label is
+    /// `Choose Source folder` and whose title is still `Choose…`.
     func assertChooseButtonPresent(
         timeout: TimeInterval = UITestTimeout.standard,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let button = root.buttons.matching(
-            NSPredicate(format: "label == %@ OR title == %@", "Choose…", "Choose…")
-        ).firstMatch
-        button.requireExists(
-            timeout: timeout,
-            message: "Choose… never showed up",
-            file: file,
-            line: line
-        )
-    }
-
-    private static func showsSettingsTitle(_ window: XCUIElement) -> Bool {
-        window.title.contains("Settings") || window.label.contains("Settings")
-    }
-
-    private static func showsNavigationTitle(_ window: XCUIElement) -> Bool {
-        if window.title.contains("MKVForge Settings") || window.label.contains("MKVForge Settings") {
-            return true
+        guard UITestWait.firstExisting(buttonCandidates(titled: "Choose…"), timeout: timeout) != nil else {
+            XCTFail("Choose… never showed up", file: file, line: line)
+            return
         }
-        return window.descendants(matching: .any).matchingLabelOrValue(equalTo: "MKVForge Settings").firstMatch.exists
+    }
+
+    private static func windowShowsNavigationTitle(_ window: XCUIElement) -> Bool {
+        guard window.exists else { return false }
+        return window.title.contains("MKVForge Settings") || window.label.contains("MKVForge Settings")
     }
 
     /// Switches and checkboxes only. A caption that contains the name must not pass
     /// as the switch. `matchingLabelOrValue` reads the control's own label or value.
     /// The finish switches include a subtitle in that label, so the match is
     /// `containing` on the control itself, not a raw descendant `containing` query.
+    private func controlCandidates(named name: String) -> [XCUIElement] {
+        [
+            app.switches.matchingLabelOrValue(containing: name).firstMatch,
+            app.checkBoxes.matchingLabelOrValue(containing: name).firstMatch,
+            app.switches.matching(NSPredicate(format: "title == %@", name)).firstMatch,
+            app.checkBoxes.matching(NSPredicate(format: "title == %@", name)).firstMatch,
+        ]
+    }
+
     private func control(named name: String) -> XCUIElement {
-        let switches = root.switches.matchingLabelOrValue(containing: name)
-        if switches.firstMatch.exists {
-            return switches.firstMatch
+        let candidates = controlCandidates(named: name)
+        return candidates.first { $0.exists } ?? candidates[0]
+    }
+
+    private func requireControl(
+        named name: String,
+        message: String,
+        timeout: TimeInterval,
+        file: StaticString,
+        line: UInt
+    ) {
+        guard UITestWait.firstExisting(controlCandidates(named: name), timeout: timeout) != nil else {
+            XCTFail(message, file: file, line: line)
+            return
         }
-        let checkBoxes = root.checkBoxes.matchingLabelOrValue(containing: name)
-        if checkBoxes.firstMatch.exists {
-            return checkBoxes.firstMatch
+    }
+
+    private func clickControl(named name: String, message: String) {
+        guard let toggle = UITestWait.firstExisting(controlCandidates(named: name), timeout: UITestTimeout.standard) else {
+            XCTFail(message)
+            return
         }
-        let titled = root.switches.matching(NSPredicate(format: "title == %@", name))
-        if titled.firstMatch.exists {
-            return titled.firstMatch
-        }
-        return root.switches.matchingLabelOrValue(equalTo: name).firstMatch
+        toggle.click()
+    }
+
+    private func buttonCandidates(titled name: String) -> [XCUIElement] {
+        let exactLabel = NSPredicate(format: "label == %@", name)
+        let labelOrTitle = NSPredicate(format: "label == %@ OR title == %@", name, name)
+        return [
+            app.buttons.matching(exactLabel).firstMatch,
+            root.buttons.matching(labelOrTitle).firstMatch,
+        ]
     }
 }

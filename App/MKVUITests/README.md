@@ -58,6 +58,14 @@ That is the only argument. Replace the arguments. Do not append. Do not add `-Ap
 
 The seeded field's accessibility label looks like `Source folder, input, /path/…/input`. Assert a path fragment such as `"input"` or `"output"` through `FolderFieldComponent`.
 
+## Window and element queries
+
+Do not look up the main window with `app.windows["MKVForge"]`. SwiftUI `Window("MKVForge", id: "main")` often has a hidden or empty title, and the identifier is an internal id such as `main-AppWindow-1`. That subscript requires the identifier or the title to be `MKVForge`, so the window never matches. Do not hardcode the internal id.
+
+`MainWindowPage.root` is `app.mainWindow`: the window whose title does not contain `Settings`. An empty title still matches. `BasePage.root` stays `app.windows.firstMatch` when that screen is the only window. Settings is not `app.windows["MKVForge Settings"]` alone. Match a title or label that contains `Settings`, and read `MKVForge Settings` from `app.staticTexts`.
+
+Do not walk `descendants(matching: .any)`. That snapshot times out on macOS ("Timed out while evaluating UI query"). Query one element type (`buttons`, `staticTexts`, `switches`, `checkBoxes`, `groups`, `progressIndicators`, and so on). `MainWindowPage.scanButton` is `app.buttons["Scan"]`.
+
 ## Finding SwiftUI text
 
 SwiftUI `Text` on macOS exposes its string as `value`. `label` is often empty. A scanned row's value looks like `sample, Issue, Empty file…`.

@@ -6,15 +6,16 @@ import XCTest
 // Default mode on launch is Split, so Source and Output are the visible folder fields.
 // Video and Audio appear after `switchToRemux()`.
 //
-// `root` is the window titled `MKVForge`. Settings uses another window, and
-// `windows.firstMatch` becomes that window while it is key.
+// `root` is the window that is not Settings. `app.windows["MKVForge"]` does not
+// match SwiftUI's main window. Scan and the other controls are app-level queries
+// of one element type, not `root.descendants(matching: .any)`.
 
 /// Window, mode picker, folder fields, Scan, the toolbar primary action, and the queue.
 @MainActor
 class MainWindowPage: BasePage {
-    /// The main window. Settings is a different window titled with "Settings".
+    /// Main window, including while Settings is key. See `XCUIApplication.mainWindow`.
     override var root: XCUIElement {
-        app.windows["MKVForge"]
+        app.mainWindow
     }
 
     var modePicker: ModePickerComponent {
@@ -22,23 +23,23 @@ class MainWindowPage: BasePage {
     }
 
     /// Folder-panel Scan button. The title is "Scan".
+    /// Queried on `app`, not through the window: a missed window match made
+    /// `root.buttons["Scan"]` fail after the mode segment had already switched.
     /// It is disabled when MKVToolNix is missing. Tests click it through
     /// `clickScanOrSkip()`, which skips when `isEnabled` is false.
     var scanButton: XCUIElement {
-        root.buttons["Scan"]
+        app.buttons["Scan"]
     }
 
     /// Toolbar primary action. Identifier `primaryAction` is on the button, so
     /// this does not match the mode segment that is also titled Split or Remux.
     var primaryAction: XCUIElement {
-        root.descendants(matching: .any)["primaryAction"]
+        app.buttons["primaryAction"]
     }
 
     /// Scan-row caption. Label is `Scan status`. The caption is the value.
     var scanStatus: XCUIElement {
-        root.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == %@ OR label == %@", "scanStatus", "Scan status")
-        ).firstMatch
+        scanStatusCandidates().first { $0.exists } ?? scanStatusCandidates()[0]
     }
 
     /// Waits for Scan and clicks it. Skips when the button is disabled
@@ -77,8 +78,7 @@ class MainWindowPage: BasePage {
     func activateMainWindow(timeout: TimeInterval = UITestTimeout.standard) -> Self {
         let window = root
         window.requireExists(timeout: timeout, message: "The MKVForge window never showed up")
-        let field = outputFolder.element
-        if field.waitForExistence(timeout: timeout) {
+        if let field = outputFolder.existingElement(timeout: timeout) {
             field.click()
             return self
         }
@@ -99,7 +99,7 @@ class MainWindowPage: BasePage {
     }
 
     func primaryAction(titled title: String) -> XCUIElement {
-        root.descendants(matching: .any).matching(
+        app.buttons.matching(
             NSPredicate(
                 format: "identifier == %@ AND (label == %@ OR title == %@ OR value == %@)",
                 "primaryAction", title, title, title
@@ -180,8 +180,12 @@ class MainWindowPage: BasePage {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let rows = root.descendants(matching: .any).matching(identifier: "queueRow")
-        XCTAssertEqual(rows.count, 0, "Expected no queue rows, saw \(rows.count)", file: file, line: line)
+        let rows = UITestQuery.count(
+            matching: NSPredicate(format: "identifier == %@", "queueRow"),
+            in: app,
+            types: QueueRowComponent.elementTypes
+        )
+        XCTAssertEqual(rows, 0, "Expected no queue rows, saw \(rows)", file: file, line: line)
     }
 
     func requireExactQueueLabel(
@@ -222,14 +226,21 @@ class MainWindowPage: BasePage {
         return modePicker.selectSplit()
     }
 
+    private func scanStatusCandidates() -> [XCUIElement] {
+        let predicate = NSPredicate(
+            format: "identifier == %@ OR label == %@",
+            "scanStatus", "Scan status"
+        )
+        return UITestQuery.matching(predicate, in: app, types: [.staticText, .group, .other])
+    }
+
     private func waitForScanStatusValue(
         timeout: TimeInterval,
         file: StaticString,
         line: UInt,
         until matches: (String) -> Bool
     ) -> String? {
-        let status = scanStatus
-        guard status.waitForExistence(timeout: timeout) else {
+        guard let status = UITestWait.firstExisting(scanStatusCandidates(), timeout: timeout) else {
             XCTFail("Scan status never showed up", file: file, line: line)
             return nil
         }
@@ -268,7 +279,9 @@ class MainWindowPage: BasePage {
         if !own.isEmpty {
             return false
         }
-        return element.descendants(matching: .any).matchingLabelOrValue(equalTo: title).firstMatch.exists
+        let child = NSPredicate(format: "label == %@ OR value == %@", title, title)
+        let children = UITestQuery.matching(child, in: element, types: [.staticText, .button])
+        return children.contains { $0.exists }
     }
 
     private static func describe(_ element: XCUIElement) -> String {

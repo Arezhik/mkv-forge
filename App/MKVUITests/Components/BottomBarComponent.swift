@@ -2,20 +2,19 @@ import XCTest
 
 // Component: the bottom bar. Summary, batch progress, and Show in Finder.
 // The row context menu also has Show in Finder. This component reads the
-// button in the main window, which is the bar button after a finish.
+// button identified `showInFinder`, which is the bar button after a finish.
 // Do not click Show in Finder. It opens Finder (issue #31).
+//
+// Queries are one element type on `app`. `app.windows["MKVForge"]` does not
+// match the SwiftUI main window, and `descendants(matching: .any)` times out.
 
 /// Leading summary, trailing progress, and the finished-run Show in Finder button.
 @MainActor
 struct BottomBarComponent {
     let app: XCUIApplication
 
-    private var window: XCUIElement {
-        app.windows["MKVForge"]
-    }
-
     /// Accessibility label of `bottomSummary` is the plain string, such as `Finished · 1 done`.
-    /// The query stays on that identifier. A window-wide exact match would also hit a
+    /// The query stays on that identifier. A text-wide exact match would also hit a
     /// notification body with the same words.
     func assertSummary(
         _ expected: String,
@@ -23,13 +22,10 @@ struct BottomBarComponent {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let summary = window.descendants(matching: .any)["bottomSummary"]
-        summary.requireExists(
-            timeout: timeout,
-            message: "The bottom-bar summary never showed up",
-            file: file,
-            line: line
-        )
+        guard let summary = UITestWait.firstExisting(summaryCandidates(), timeout: timeout) else {
+            XCTFail("The bottom-bar summary never showed up", file: file, line: line)
+            return
+        }
         let deadline = Date().addingTimeInterval(timeout)
         var observed = Self.exposedText(summary)
         while Date() < deadline {
@@ -57,15 +53,10 @@ struct BottomBarComponent {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let progress = window.descendants(matching: .any).matching(
-            NSPredicate(format: "label == %@", "Batch progress")
-        ).firstMatch
-        progress.requireExists(
-            timeout: timeout,
-            message: "Batch progress never showed up",
-            file: file,
-            line: line
-        )
+        guard let progress = UITestWait.firstExisting(progressCandidates(), timeout: timeout) else {
+            XCTFail("Batch progress never showed up", file: file, line: line)
+            return
+        }
         let deadline = Date().addingTimeInterval(timeout)
         var observed = Self.stringValue(progress)
         while Date() < deadline {
@@ -77,13 +68,10 @@ struct BottomBarComponent {
         }
         XCTAssertEqual(observed, expectedValue, "Batch progress value", file: file, line: line)
 
-        let caption = window.descendants(matching: .any)["batchProgressCaption"]
-        caption.requireExists(
-            timeout: timeout,
-            message: "The progress caption never showed up",
-            file: file,
-            line: line
-        )
+        guard let caption = UITestWait.firstExisting(captionCandidates(), timeout: timeout) else {
+            XCTFail("The progress caption never showed up", file: file, line: line)
+            return
+        }
         let captionDeadline = Date().addingTimeInterval(timeout)
         var captionText = ""
         while Date() < captionDeadline {
@@ -108,16 +96,14 @@ struct BottomBarComponent {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let button = window.descendants(matching: .any)["showInFinder"]
-        button.requireExists(
-            timeout: timeout,
-            message: "Show in Finder never showed up in the bottom bar",
-            file: file,
-            line: line
-        )
+        let identified = app.buttons.matching(NSPredicate(format: "identifier == %@", "showInFinder")).firstMatch
+        guard let button = UITestWait.firstExisting([identified], timeout: timeout) else {
+            XCTFail("Show in Finder never showed up in the bottom bar", file: file, line: line)
+            return
+        }
         let named = button.label == "Show in Finder"
             || button.title == "Show in Finder"
-            || button.descendants(matching: .any).matchingLabelOrValue(equalTo: "Show in Finder").firstMatch.exists
+            || button.staticTexts.matchingLabelOrValue(equalTo: "Show in Finder").firstMatch.exists
         XCTAssertTrue(
             named,
             "showInFinder was label='\(button.label)' title='\(button.title)'",
@@ -126,7 +112,24 @@ struct BottomBarComponent {
         )
     }
 
-    /// `label` or `value` equals `expected`, or a child of this element does.
+    private func summaryCandidates() -> [XCUIElement] {
+        UITestQuery.identified("bottomSummary", in: app, types: [.staticText, .group, .other])
+    }
+
+    private func progressCandidates() -> [XCUIElement] {
+        let predicate = NSPredicate(format: "label == %@", "Batch progress")
+        return UITestQuery.matching(
+            predicate,
+            in: app,
+            types: [.progressIndicator, .group, .other]
+        )
+    }
+
+    private func captionCandidates() -> [XCUIElement] {
+        UITestQuery.identified("batchProgressCaption", in: app, types: [.staticText, .group, .other])
+    }
+
+    /// `label` or `value` equals `expected`, or a static-text child of this element does.
     /// Children outside this element do not count.
     private static func showsExact(_ element: XCUIElement, _ expected: String) -> Bool {
         if element.label == expected {
@@ -135,7 +138,7 @@ struct BottomBarComponent {
         if let text = element.value as? String, text == expected {
             return true
         }
-        return element.descendants(matching: .any).matchingLabelOrValue(equalTo: expected).firstMatch.exists
+        return element.staticTexts.matchingLabelOrValue(equalTo: expected).firstMatch.exists
     }
 
     private static func exposedText(_ element: XCUIElement) -> String {

@@ -40,8 +40,23 @@ struct FolderFieldComponent {
         self.init(app: app, identifier: role)
     }
 
+    /// The field is one element (`accessibilityElement(children: .ignore)`).
+    /// Groups, other elements, static texts, and cells cover that container.
+    /// `descendants(matching: .any)` is not used.
+    private var candidates: [XCUIElement] {
+        UITestQuery.identified(
+            identifier.rawValue,
+            in: app,
+            types: [.group, .other, .staticText, .cell]
+        )
+    }
+
     var element: XCUIElement {
-        app.descendants(matching: .any)[identifier.rawValue]
+        candidates.first { $0.exists } ?? candidates[0]
+    }
+
+    func existingElement(timeout: TimeInterval) -> XCUIElement? {
+        UITestWait.firstExisting(candidates, timeout: timeout)
     }
 
     @discardableResult
@@ -50,12 +65,15 @@ struct FolderFieldComponent {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> XCUIElement {
-        element.requireExists(
-            timeout: timeout,
-            message: "The \(identifier.roleName) folder field (\(identifier.rawValue)) never showed up",
+        if let field = existingElement(timeout: timeout) {
+            return field
+        }
+        XCTFail(
+            "The \(identifier.roleName) folder field (\(identifier.rawValue)) never showed up",
             file: file,
             line: line
         )
+        return candidates[0]
     }
 
     /// Asserts the field shows a seeded path fragment such as `"input"` or `"output"`.
