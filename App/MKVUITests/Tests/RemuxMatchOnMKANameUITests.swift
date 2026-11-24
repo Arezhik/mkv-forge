@@ -33,7 +33,7 @@ final class RemuxMatchOnMKANameUITests: BaseUITest {
             page.switchToRemux()
         }
 
-        XCTContext.runActivity(named: "Remux folders are on screen") { _ in
+        XCTContext.runActivity(named: "Remux folders are on screen") { _ -> Void in
             remux.waitForRemuxFolders()
         }
 
@@ -53,11 +53,11 @@ final class RemuxMatchOnMKANameUITests: BaseUITest {
             try remux.clickScanOrSkip()
         }
 
-        XCTContext.runActivity(named: "Matched video is Ready") { _ in
+        XCTContext.runActivity(named: "Matched video is Ready") { _ -> Void in
             remux.queueRow(stem: videoStem).requireExactLabel("\(videoStem), Ready")
         }
 
-        XCTContext.runActivity(named: "Unmatched video is an Issue") { _ in
+        XCTContext.runActivity(named: "Unmatched video is an Issue") { _ -> Void in
             remux.queueRow(stem: unmatchedStem).requireExactLabel(
                 "\(unmatchedStem), Issue, No matching .mka in Audio folder"
             )

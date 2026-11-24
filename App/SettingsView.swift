@@ -57,7 +57,16 @@ struct SettingsView: View {
                     }
                 }
             } header: {
+                // Grouped Form headers are a group title on macOS, not a static
+                // text, and the form may uppercase them. The label and identifier
+                // stay the exact section name.
                 Text("MKVToolNix")
+                    .textCase(nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("mkvToolNixSection")
+                    .accessibilityLabel("MKVToolNix")
+                    .accessibilityAddTraits(.isHeader)
             } footer: {
                 if model.toolStatus != .notFound {
                     Text(ExternalTool.searchDescription())
@@ -101,10 +110,13 @@ struct SettingsView: View {
                         Text("Only when MKVForge isn't the active app.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                 }
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+                .accessibilityLabel("Send a notification")
+                .accessibilityHint("Only when MKVForge isn't the active app.")
 
                 if model.settings.notifyWhenFinished && model.notificationsBlocked {
                     HStack(spacing: 8) {
@@ -128,10 +140,13 @@ struct SettingsView: View {
                         Text("Once, only when MKVForge is in the background.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                 }
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+                .accessibilityLabel("Bounce the Dock icon")
+                .accessibilityHint("Once, only when MKVForge is in the background.")
             }
         }
         .formStyle(.grouped)

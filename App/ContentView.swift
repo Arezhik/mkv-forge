@@ -124,6 +124,8 @@ private struct PrimaryButton: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!enablement.primary)
+                .accessibilityIdentifier("primaryAction")
+                .accessibilityLabel(title)
             case .cancel:
                 Button {
                     model.primaryAction()
@@ -132,6 +134,8 @@ private struct PrimaryButton: View {
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.bordered)
+                .accessibilityIdentifier("primaryAction")
+                .accessibilityLabel(PrimaryAction.cancel.title)
             case .cancelling:
                 Button {} label: {
                     HStack(spacing: 6) {
@@ -143,6 +147,8 @@ private struct PrimaryButton: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(true)
+                .accessibilityIdentifier("primaryAction")
+                .accessibilityLabel(PrimaryAction.cancelling.title)
             }
         }
         .frame(minWidth: 96)
@@ -184,6 +190,7 @@ private struct ToolBanner: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("toolBanner")
     }
 
     private var title: String {
@@ -300,6 +307,7 @@ private struct ScanRow: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(scanning ? ScanCaption.escHelp : (model.scanFailed ? caption : ""))
+                .accessibilityIdentifier("scanStatus")
                 .accessibilityLabel("Scan status")
                 .accessibilityValue(caption.replacingOccurrences(of: "Scanning… ", with: "Scanning, "))
             Button {
@@ -493,6 +501,10 @@ private struct ReasonCell: View {
                 .accessibilityHint(MatchOnMKAName.chooseMatchHint)
             }
             if display.showsUnmatch {
+                // `.buttonStyle(.link)` is an XCUIElementTypeLink, and a Table
+                // cell often omits that element. The on-screen title stays
+                // "Unmatch". The accessible control is a button whose label is
+                // `Unmatch X Extended from X.mka`.
                 Button("Unmatch") {
                     let rowID = row.id
                     Task { @MainActor in model.unmatch(rowID: rowID) }
@@ -501,6 +513,17 @@ private struct ReasonCell: View {
                 .controlSize(.small)
                 .disabled(locked)
                 .accessibilityLabel(display.unmatchLabel)
+                .accessibilityIdentifier("unmatchButton")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityRepresentation {
+                    Button(display.unmatchLabel) {
+                        let rowID = row.id
+                        Task { @MainActor in model.unmatch(rowID: rowID) }
+                    }
+                    .disabled(locked)
+                    .accessibilityIdentifier("unmatchButton")
+                    .accessibilityLabel(display.unmatchLabel)
+                }
             }
         }
     }
@@ -598,6 +621,7 @@ private struct BottomBar: View {
                 .font(.system(size: 12.5))
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .accessibilityIdentifier("bottomSummary")
                 .accessibilityLabel(summary.plain)
             Spacer(minLength: 12)
             if StatusLines.showsShowInFinder(workflow, state) {
@@ -605,20 +629,36 @@ private struct BottomBar: View {
                     model.showOutputsInFinder()
                 }
                 .controlSize(.small)
+                .accessibilityIdentifier("showInFinder")
             }
             if let column = StatusLines.progressColumn(workflow, state) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(column.caption.isEmpty ? " " : column.caption)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
-                    ProgressView(value: Double(column.completed), total: Double(max(column.total, 1)))
-                        .progressViewStyle(.linear)
-                        .controlSize(.small)
+                        .accessibilityIdentifier("batchProgressCaption")
+                        .accessibilityLabel(column.caption)
+                        .accessibilityHidden(column.caption.isEmpty)
+                    // The indicator is an NSProgressIndicator. XCTest reads its
+                    // value as "" even after accessibilityValue is set. A real
+                    // text in this stack uses the scan-caption pattern: label
+                    // `Batch progress`, value `1 of 1 complete`. It sits under
+                    // the bar. The caption above stays a sibling.
+                    ZStack {
+                        Text(StatusLines.progressAccessibilityValue(column))
+                            .font(.system(size: 1))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: 4, alignment: .leading)
+                            .accessibilityIdentifier("batchProgress")
+                            .accessibilityLabel("Batch progress")
+                            .accessibilityValue(StatusLines.progressAccessibilityValue(column))
+                        ProgressView(value: Double(column.completed), total: Double(max(column.total, 1)))
+                            .progressViewStyle(.linear)
+                            .controlSize(.small)
+                            .accessibilityHidden(true)
+                    }
                 }
                 .frame(width: 152)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Batch progress")
-                .accessibilityValue(StatusLines.progressAccessibilityValue(column))
             }
         }
         .padding(.horizontal, 16)

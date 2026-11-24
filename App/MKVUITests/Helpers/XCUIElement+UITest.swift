@@ -8,12 +8,80 @@ enum UITestTimeout {
     static let short: TimeInterval = 2
     static let standard: TimeInterval = 5
     static let long: TimeInterval = 10
+    /// One 1-second mkvmerge job, including process startup.
+    static let batch: TimeInterval = 60
+}
+
+/// Shallow locators. `descendants(matching: .any)` and `.other` snapshot the
+/// whole tree and time out on macOS ("Timed out while evaluating UI query").
+/// Each candidate is one element type on one window: buttons, staticTexts,
+/// groups, switches. A predicate that reads `value` has to be that narrow too.
+/// `exists` records a test failure when the snapshot times out. It does not
+/// return false.
+enum UITestQuery {
+    /// `XCUIElementQuery` subscript matches identifier, label, or title.
+    @MainActor
+    static func identified(
+        _ identifier: String,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> [XCUIElement] {
+        types.map { root.descendants(matching: $0)[identifier] }
+    }
+
+    @MainActor
+    static func matching(
+        _ predicate: NSPredicate,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> [XCUIElement] {
+        types.map { root.descendants(matching: $0).matching(predicate).firstMatch }
+    }
+
+    @MainActor
+    static func count(
+        matching predicate: NSPredicate,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> Int {
+        types.reduce(0) { partial, type in
+            partial + root.descendants(matching: type).matching(predicate).count
+        }
+    }
+
+    @MainActor
+    static func all(
+        matching predicate: NSPredicate,
+        in root: XCUIElement,
+        types: [XCUIElement.ElementType]
+    ) -> [XCUIElement] {
+        types.flatMap { root.descendants(matching: $0).matching(predicate).allElementsBoundByIndex }
+    }
+}
+
+@MainActor
+extension XCUIApplication {
+    /// The main window while Settings may also be open.
+    ///
+    /// `windows["MKVForge"]` checks identifier or title. SwiftUI
+    /// `Window("MKVForge", id: "main")` fails that check when the title is
+    /// hidden and the identifier is an internal id. Do not hardcode that id.
+    /// An empty title still matches: `NOT ("" CONTAINS[c] "Settings")` is true.
+    var mainWindow: XCUIElement {
+        windows.matching(
+            NSPredicate(format: "NOT (title CONTAINS[c] %@)", "Settings")
+        ).firstMatch
+    }
 }
 
 enum UITestWait {
     /// Returns the first element that exists, polling until `timeout`.
     /// Use this when several locators can match the same control (an identifier
     /// that arrives in a later PR, then a label fallback).
+    ///
+    /// Each element must already be one element type on one window. Pass the
+    /// Settings window, not `XCUIApplication`: an app-wide `.other` or `value`
+    /// query snapshots the main window as well and fails here.
     @MainActor
     static func firstExisting(_ elements: [XCUIElement], timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
@@ -36,6 +104,9 @@ extension XCUIElementQuery {
     /// SwiftUI `Text` on macOS exposes its string as `value`. `label` is often empty.
     /// `containing` searches descendants, so a `StaticText` never matches
     /// `label CONTAINS`. Use `matching` with both keys.
+    ///
+    /// Not for switches or checkboxes. Their `value` is `1` or `0`, and
+    /// `value CONTAINS` times out the snapshot.
     func matchingLabelOrValue(containing text: String) -> XCUIElementQuery {
         matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text))
     }
@@ -79,5 +150,36 @@ extension XCUIElement {
     ) {
         requireExists(timeout: timeout, message: message, file: file, line: line)
         click()
+    }
+
+    /// Switch and checkbox values. macOS reports `1`/`0` or `on`/`off`.
+    var switchIsOn: Bool? {
+        let raw = (value.map { "\($0)" } ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch raw {
+        case "1", "on", "true":
+            return true
+        case "0", "off", "false":
+            return false
+        default:
+            return nil
+        }
+    }
+
+    /// The Settings bindings write on the next main-actor turn, so poll the value.
+    func waitUntilSwitch(
+        isOn expected: Bool,
+        timeout: TimeInterval = UITestTimeout.standard,
+        message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if switchIsOn == expected {
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTFail("\(message) Value was \(value.map { "\($0)" } ?? "nil").", file: file, line: line)
     }
 }
