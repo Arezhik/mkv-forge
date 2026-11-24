@@ -3,10 +3,11 @@ import SwiftUI
 import MKVForgeCore
 
 // The main window (docs/design/v1-layout-contract_v2.md §1–§9, §11, §12; v2.1 addendum
-// §2). From top to bottom: toolbar (title + subtitle, mode switch, primary action), the
-// MKVToolNix-not-found banner, the folder panel and Scan row, the queue table, and the
-// bottom bar. Every text, enablement and status comes from MKVForgeCore (StatusLines,
-// ScanCaption, RowDisplay, EmptyState, Workflow), so the rules are tested on Linux.
+// §2; v2.3 Show Ready). From top to bottom: toolbar (title + subtitle, mode switch,
+// primary action), the MKVToolNix-not-found banner, the folder panel and Scan row, the
+// queue table, and the bottom bar. Every text, enablement and status comes from
+// MKVForgeCore (StatusLines, ScanCaption, RowDisplay, EmptyState, QueueVisibility,
+// Workflow), so the rules are tested on Linux.
 // Controls write the model on the next run-loop turn, never during a view update (L10).
 // All of the main window is in this file until the Mac-side project regeneration
 // (docs/LESSONS.md L19): Linux agents can't add files to the Xcode project.
@@ -18,6 +19,9 @@ struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @State private var selected = TableSelection()
     @AccessibilityFocusState private var focusedRow: String?
+    /// Show Ready. Session-only, both modes, off until the user turns it on (v2.3).
+    /// Not stored in AppSettings. It only filters the table.
+    @State private var showReady = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,10 +32,10 @@ struct ContentView: View {
             }
             FolderPanel(model: model)
             Divider()
-            QueueTable(model: model, selection: selection, focusedRow: $focusedRow)
+            QueueTable(model: model, selection: selection, focusedRow: $focusedRow, showReady: showReady)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            BottomBar(model: model)
+            BottomBar(model: model, showReady: $showReady)
         }
         .frame(minWidth: 760, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         .toolbar {
@@ -328,12 +332,14 @@ private struct ScanRow: View {
     }
 }
 
-// MARK: Queue table (v2 §4, v2.1 §2.4)
+// MARK: Queue table (v2 §4, v2.1 §2.4, v2.3 Show Ready)
 
 private struct QueueTable: View {
     @ObservedObject var model: AppModel
     @Binding var selection: Set<String>
     var focusedRow: AccessibilityFocusState<String?>.Binding
+    /// Display filter only. Checkboxes, Scan, the summary and Run still use `state.rows`.
+    var showReady: Bool
 
     var body: some View {
         let state = model.current
@@ -341,7 +347,8 @@ private struct QueueTable: View {
         let locked = model.workflow.activity.isBusy
         // Re-scan: the old rows stay, dimmed, until the new ones replace them in one step.
         let rescanning = model.workflow.activity.isScanning && !state.rows.isEmpty
-        Table(state.rows, selection: $selection) {
+        let visible = QueueVisibility.visibleRows(state.rows, showReady: showReady)
+        Table(visible, selection: $selection) {
             TableColumn("") { (row: QueueRow) in
                 CheckboxCell(model: model, row: row, display: RowDisplay(row, mode: mode, locked: locked), focusedRow: focusedRow)
             }
@@ -376,6 +383,13 @@ private struct QueueTable: View {
             if let empty = EmptyState.make(model.workflow, state, toolUsable: model.toolUsable) {
                 EmptyStateView(state: empty)
                     .padding(.top, 28)
+                    .allowsHitTesting(false)
+            } else if QueueVisibility.showsEmptyState(rows: state.rows, showReady: showReady) {
+                Text("No ready files")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("noReadyFiles")
+                    .accessibilityLabel("No ready files")
                     .allowsHitTesting(false)
             }
         }
@@ -607,10 +621,11 @@ private struct EmptyStateView: View {
     }
 }
 
-// MARK: Bottom bar (v2 §7)
+// MARK: Bottom bar (v2 §7, v2.3 Show Ready)
 
 private struct BottomBar: View {
     @ObservedObject var model: AppModel
+    @Binding var showReady: Bool
 
     var body: some View {
         let workflow = model.workflow
@@ -624,6 +639,11 @@ private struct BottomBar: View {
                 .accessibilityIdentifier("bottomSummary")
                 .accessibilityLabel(summary.plain)
             Spacer(minLength: 12)
+            Toggle("Show Ready", isOn: $showReady)
+                .toggleStyle(.button)
+                .controlSize(.small)
+                .accessibilityIdentifier("showReadyToggle")
+                .accessibilityLabel("Show Ready")
             if StatusLines.showsShowInFinder(workflow, state) {
                 Button("Show in Finder") {
                     model.showOutputsInFinder()

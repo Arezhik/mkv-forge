@@ -6,6 +6,10 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24 (build 7)
+### Added
+- Show Ready, a bottom-bar toggle in Split and Remux (off by default, not remembered). It hides Issue rows in the table. Ready, Done, Done · warning and Failed stay visible, and the summary, Scan and Run still use the full queue (#48).
+
 ## [0.5.0] - 2026-11-21 (build 6)
 ### Added
 - Remux: Match on MKA Name (Settings, on by default). A video pairs with an MKA when its name starts with the MKA's name, ignoring case; collisions show as Ambiguous match with a Choose Match picker; picks clear on re-scan, folder or setting change (#33, supersedes #16).
