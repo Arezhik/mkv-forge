@@ -9,7 +9,8 @@ import Foundation
 // - Reason shows the first issue by priority plus "(+N more)"; the help text lists all.
 // - A note doesn't stop a row. A Ready row with a note shows it in Reason (a Remux video
 //   file with audio or subtitle tracks: only its video is used; a pair you picked says
-//   `Matched by you`).
+//   `Matched by you`; a Split source with audio but no subtitles or no chapters names
+//   what is missing).
 
 public enum ScanMode: String, Equatable, Sendable {
     case split
@@ -55,7 +56,6 @@ public enum ScanIssue: Equatable, Sendable {
     case noTracks(FolderRole, fileName: String)
     case noAudioOrSubtitles(fileName: String)
     case noAudio(fileName: String)
-    case noSubtitles(fileName: String)
     case noVideoTrack(fileName: String)
     case mkaHasNoAudioOrSubtitles(fileName: String)
     case outputIsVideoFolder
@@ -78,7 +78,7 @@ public enum ScanIssue: Equatable, Sendable {
         case .unreadable: return 5
         case .notMatroska: return 6
         case .noTracks: return 7
-        case .noAudioOrSubtitles, .noAudio, .noSubtitles, .noVideoTrack, .mkaHasNoAudioOrSubtitles: return 8
+        case .noAudioOrSubtitles, .noAudio, .noVideoTrack, .mkaHasNoAudioOrSubtitles: return 8
         case .outputExists, .outputAlreadyExists: return 9
         }
     }
@@ -105,8 +105,6 @@ public enum ScanIssue: Equatable, Sendable {
             return "No audio or subtitle tracks found"
         case .noAudio:
             return "No audio tracks found"
-        case .noSubtitles:
-            return "No subtitle tracks found"
         case .noVideoTrack:
             return "No video track in the .mkv"
         case .mkaHasNoAudioOrSubtitles:
@@ -144,9 +142,7 @@ public enum ScanIssue: Equatable, Sendable {
         case let .noAudioOrSubtitles(name):
             return "No audio or subtitle tracks found in \(name), so there's nothing to split."
         case let .noAudio(name):
-            return "No audio tracks found in \(name). Split needs at least one audio track and one subtitle track."
-        case let .noSubtitles(name):
-            return "No subtitle tracks found in \(name). Split needs at least one audio track and one subtitle track."
+            return "No audio tracks found in \(name). Split needs at least one audio track."
         case let .noVideoTrack(name):
             return "\(name) has no video track, so there's nothing to remux."
         case let .mkaHasNoAudioOrSubtitles(name):
@@ -173,6 +169,10 @@ public enum ScanNote: Equatable, Sendable {
     case videoOnly(fileName: String, audio: Int, subtitles: Int)
     /// The user picked this pair from an Ambiguous match row (v2.2 §B.3).
     case matchedByYou(videoFileName: String, audioFileName: String)
+    /// Split: the source has audio and no subtitle tracks. The row stays Ready.
+    case noSubtitles(fileName: String)
+    /// Split: the source has audio and no chapter editions. The row stays Ready.
+    case noChapters(fileName: String)
 
     public var reason: String {
         switch self {
@@ -180,6 +180,10 @@ public enum ScanNote: Equatable, Sendable {
             return "Uses video only, ignores \(Self.trackCounts(audio: audio, subtitles: subtitles))"
         case .matchedByYou:
             return "Matched by you"
+        case .noSubtitles:
+            return "No subtitle tracks found"
+        case .noChapters:
+            return "No chapters found"
         }
     }
 
@@ -189,6 +193,10 @@ public enum ScanNote: Equatable, Sendable {
             return "\(name) also has \(Self.trackCounts(audio: audio, subtitles: subtitles)). Remux takes only its video track; the audio, subtitles and chapters come from the .mka."
         case let .matchedByYou(video, audio):
             return "You paired \(audio) with \(video)."
+        case let .noSubtitles(name):
+            return "No subtitle tracks found in \(name). The .mka will include its audio tracks and chapters (if any)."
+        case let .noChapters(name):
+            return "No chapters found in \(name). The .mka will include its audio and subtitle tracks (if any)."
         }
     }
 

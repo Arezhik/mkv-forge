@@ -6,6 +6,10 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-24 (build 8)
+### Changed
+- Split requires only an audio track. A source with no subtitles, no chapters, or neither stays Ready and warns (`No subtitle tracks found`, `No chapters found`). A source with no audio track is still an Issue and is not split (#42).
+
 ## [0.6.0] - 2026-11-24 (build 7)
 ### Added
 - Show Ready, a bottom-bar toggle in Split and Remux (off by default, not remembered). It hides Issue rows in the table. Ready, Done, Done · warning and Failed stay visible, and the summary, Scan and Run still use the full queue (#48).

@@ -23,6 +23,7 @@
 		5189B8FFD6B78C6F43970474 /* UITestingLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */; };
 		60365395663F1EFE95E79D0E /* RemuxVideoOnlyNoteUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5063002AC94E7B2FD8456218 /* RemuxVideoOnlyNoteUITests.swift */; };
 		61BE4562897AAC7D7FB61A9F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732DB57213FB70CB4DBF41FC /* AppDelegate.swift */; };
+		641B6B7EAF2368E94C8F5FE8 /* SplitAudioOnlyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD389A601225C3CE8A810CB /* SplitAudioOnlyUITests.swift */; };
 		6428359D6410411EEFF987DF /* SplitStillChangingUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AB3D66A009512FE7C437E8 /* SplitStillChangingUITests.swift */; };
 		6753D013FA4C907A711E6668 /* MainWindowPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8158EA0016D4686F63028DC5 /* MainWindowPage.swift */; };
 		7A07E0E67D8DD4582CEB520F /* ShowReadyRemuxUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739CA4BBDF8C07B0BE87091B /* ShowReadyRemuxUITests.swift */; };
@@ -36,6 +37,7 @@
 		B36FDDA3DD574550F628BAE4 /* XCUIElement+UITest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D4BBC71D0E4478E0428960 /* XCUIElement+UITest.swift */; };
 		B5DC759986BC45A56EE11DC5 /* UITestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75A73DF67C5EFC255E1A647E /* UITestFixtures.swift */; };
 		B61571C120B7790A010B3122 /* ToolMissingBannerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53007E21886D46130046324A /* ToolMissingBannerUITests.swift */; };
+		B934923595B4FC0F336BB031 /* SplitMissingChaptersUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F23C913BD3342BC3A51A616 /* SplitMissingChaptersUITests.swift */; };
 		C402816A1170029058EDD869 /* RemuxRunUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50F29DC4A87B1660655AEFF3 /* RemuxRunUITests.swift */; };
 		C5B5C9AB62D0B5CFEFCCFF1C /* MKVForgeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2D29AEF9CAE1EB452E43FA8F /* MKVForgeCore */; };
 		CD34CB0FD63C72AB660F6096 /* UITestFixtureBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F400027C12CE672A61FEA22 /* UITestFixtureBuilder.swift */; };
@@ -70,11 +72,13 @@
 		2696D2594905DBACDA07FB03 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		27FDD737995B92AF6CF52518 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		29EE229ABEFF5F05ABB443A7 /* SplitEmptyFileUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitEmptyFileUITests.swift; sourceTree = "<group>"; };
+		2F23C913BD3342BC3A51A616 /* SplitMissingChaptersUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitMissingChaptersUITests.swift; sourceTree = "<group>"; };
 		389CDAC04276C249F212248B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		39A032EF44382BDC6427F29A /* RemuxMatchToggleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxMatchToggleUITests.swift; sourceTree = "<group>"; };
 		3C40FE7EE8CECD4D67EF349D /* ModePickerComponent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePickerComponent.swift; sourceTree = "<group>"; };
 		40C3B8B16D0EFAC73549387C /* MKVForgeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MKVForgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4482C5B30290F4AB246F357A /* BottomBarComponent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomBarComponent.swift; sourceTree = "<group>"; };
+		4AD389A601225C3CE8A810CB /* SplitAudioOnlyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitAudioOnlyUITests.swift; sourceTree = "<group>"; };
 		5063002AC94E7B2FD8456218 /* RemuxVideoOnlyNoteUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxVideoOnlyNoteUITests.swift; sourceTree = "<group>"; };
 		50F29DC4A87B1660655AEFF3 /* RemuxRunUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxRunUITests.swift; sourceTree = "<group>"; };
 		53007E21886D46130046324A /* ToolMissingBannerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolMissingBannerUITests.swift; sourceTree = "<group>"; };
@@ -153,8 +157,10 @@
 				04A17AAAA8986EB8B5E5D3AA /* SettingsEssentialsUITests.swift */,
 				739CA4BBDF8C07B0BE87091B /* ShowReadyRemuxUITests.swift */,
 				BCCD941874875EEB52AD11CB /* ShowReadySplitUITests.swift */,
+				4AD389A601225C3CE8A810CB /* SplitAudioOnlyUITests.swift */,
 				29EE229ABEFF5F05ABB443A7 /* SplitEmptyFileUITests.swift */,
 				65945D429A28CF51FF4AA4A4 /* SplitExistingOutputUITests.swift */,
+				2F23C913BD3342BC3A51A616 /* SplitMissingChaptersUITests.swift */,
 				FD58BB5DA86B2B18484192FB /* SplitReadyUITests.swift */,
 				84AB3D66A009512FE7C437E8 /* SplitStillChangingUITests.swift */,
 				53007E21886D46130046324A /* ToolMissingBannerUITests.swift */,
@@ -357,8 +363,10 @@
 				022DBFDDC8F230C70399CA34 /* SettingsPage.swift in Sources */,
 				7A07E0E67D8DD4582CEB520F /* ShowReadyRemuxUITests.swift in Sources */,
 				FC9D4A6A107B649427BB72D2 /* ShowReadySplitUITests.swift in Sources */,
+				641B6B7EAF2368E94C8F5FE8 /* SplitAudioOnlyUITests.swift in Sources */,
 				DBA4E066D9581D6FF28CED4D /* SplitEmptyFileUITests.swift in Sources */,
 				F7C71CF93494BB6743B18874 /* SplitExistingOutputUITests.swift in Sources */,
+				B934923595B4FC0F336BB031 /* SplitMissingChaptersUITests.swift in Sources */,
 				2E19C82D690C16DA9B143CF2 /* SplitPage.swift in Sources */,
 				94D1A68194AC03D874219E93 /* SplitReadyUITests.swift in Sources */,
 				6428359D6410411EEFF987DF /* SplitStillChangingUITests.swift in Sources */,
@@ -409,7 +417,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -421,7 +429,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForge;
 				PRODUCT_NAME = MKVForge;
@@ -499,7 +507,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -511,7 +519,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForge;
 				PRODUCT_NAME = MKVForge;

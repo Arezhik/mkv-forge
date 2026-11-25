@@ -10,6 +10,9 @@ import Foundation
 //   session's Split batches (`FreshOutputs`, L32).
 // - A Remux video file with audio or subtitle tracks is Ready with a note: only its video
 //   track is used.
+// - Split needs at least one audio track. Missing subtitles or chapters (or both) are
+//   Ready notes, not Issues. No audio is an Issue. No audio and no subtitles stays
+//   `.noAudioOrSubtitles`.
 // - Then `mkvmerge -J` on the rest, at most `maxConcurrentProbes` at a time (L16), and
 //   the track checks. Existing output is checked on every scan and never overwritten.
 // - Folder walks and probes run off the main thread; cancelling the scan task stops it.
@@ -85,6 +88,7 @@ public struct FolderScanner: Sendable {
             guard var item = items[name] else { continue }
             let fileName = (item.sourcePath.map { ($0 as NSString).lastPathComponent }) ?? name
             var issues = item.issues
+            var notes: [ScanNote] = []
             switch probe {
             case let .unreadable(detail):
                 issues.append(.unreadable(.source, fileName: fileName, detail: detail))
@@ -98,12 +102,19 @@ public struct FolderScanner: Sendable {
                         issues.append(.noAudioOrSubtitles(fileName: fileName))
                     } else if audio == 0 {
                         issues.append(.noAudio(fileName: fileName))
-                    } else if subtitles == 0 {
-                        issues.append(.noSubtitles(fileName: fileName))
+                    } else {
+                        // Subtitles first, then chapters, so both-missing Reason is
+                        // `No subtitle tracks found (+1 more)`.
+                        if subtitles == 0 {
+                            notes.append(.noSubtitles(fileName: fileName))
+                        }
+                        if info.chapterEditions == 0 {
+                            notes.append(.noChapters(fileName: fileName))
+                        }
                     }
                 }
             }
-            items[name] = ScanItem(baseName: name, sourcePath: item.sourcePath, outputPath: item.outputPath, sourceInfo: item.sourceInfo, issues: issues)
+            items[name] = ScanItem(baseName: name, sourcePath: item.sourcePath, outputPath: item.outputPath, sourceInfo: item.sourceInfo, issues: issues, notes: notes)
         }
         let result = ScanResult(mode: .split, scannedAt: scannedAt, items: Array(items.values))
         DebugLog.shared.record(.queue, "Scan Split finished: \(result.nameCount) files, \(result.flaggedCount) flagged")

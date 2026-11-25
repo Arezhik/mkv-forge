@@ -21,6 +21,21 @@ final class MKVMergeCommandTests: XCTestCase {
             + clear(1) + clear(2) + clear(3) + ["/in/@A -x.mkv"])
     }
 
+    func testSplitWithVideoAndAudioAndNoSubtitlesKeepsOnlyAudioIDs() throws {
+        let tracks = [TrackInfo(id: 0, kind: .video), TrackInfo(id: 4, kind: .audio), TrackInfo(id: 2, kind: .audio)]
+        let arguments = try MKVMergeCommand.split(source: "/in/A.mkv", output: "/out/A.mka", tracks: tracks)
+        XCTAssertEqual(arguments,
+            ["-o", "/out/A.mka", "--title", "", "--no-date", "--disable-track-statistics-tags",
+             "--no-video", "--no-attachments", "--no-global-tags", "--no-track-tags"]
+            + clear(2) + clear(4) + ["/in/A.mkv"])
+        let languages = arguments.enumerated().compactMap { index, argument -> String? in
+            guard argument == "--language", index + 1 < arguments.count else { return nil }
+            return arguments[index + 1]
+        }
+        XCTAssertEqual(languages, ["2:und", "4:und"])
+        XCTAssertFalse(arguments.contains("--no-chapters"))
+    }
+
     func testSplitFromTheFullFixtureClearsOnlyReportedIDs() throws {
         guard case let .readable(info) = IdentificationParser.parse(status: 0, output: Data(IdentifyFixtures.full103.utf8)) else { return XCTFail() }
         let arguments = try MKVMergeCommand.split(source: "/in/full.mkv", output: "/out/full.mka", tracks: info.tracks)

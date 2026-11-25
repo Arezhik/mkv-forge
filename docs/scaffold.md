@@ -5,12 +5,12 @@
 
 ## Overview
 
-MKVForge is a native universal macOS app (Apple silicon + Intel) that automates two MKVToolNix workflows in batch: **splitting** full MKVs into clean audio/subtitle/chapter `.mka` files, and **remuxing** encoded video-only MKVs with their matching `.mka` files into finished MKVs.
+MKVForge is a native universal macOS app (Apple silicon + Intel) that automates two MKVToolNix workflows in batch: **splitting** full MKVs into clean `.mka` files (every audio track, plus subtitle tracks and chapters when the source has them), and **remuxing** encoded video-only MKVs with their matching `.mka` files into finished MKVs.
 
 Two independent workflows (tabs):
 
 **Workflow 1 — Split (to MKA)**
-Scan a source folder for MKVs. For each one, write a single clean `.mka` to a user-chosen output folder containing all audio tracks, all subtitle tracks and the chapters, with every tag and metadata field from the source MKV stripped.
+Scan a source folder for MKVs. For each one that has at least one audio track, write a single clean `.mka` to a user-chosen output folder containing all of its audio tracks and, when present, its subtitle tracks and chapters, with every tag and metadata field from the source MKV stripped. Missing subtitles or chapters are a warning, not a skip. A source with no audio track is skipped.
 
 **Workflow 2 — Remux**
 Match encoded `.mkv` files with the `.mka` files that share their exact base name, and remux each pair into a finished `.mkv` with that same base name. Only the video track of each `.mkv` is used.
@@ -25,7 +25,7 @@ Match encoded `.mkv` files with the `.mka` files that share their exact base nam
 | Type | Extension | v1 role |
 |------|-----------|---------|
 | Video | `.mkv` | Encoded video input (Workflow 2); only its video track is used |
-| Audio + subs + chapters | `.mka` | Output of Workflow 1, input of Workflow 2 |
+| Audio, plus subs and chapters when present | `.mka` | Output of Workflow 1, input of Workflow 2 |
 
 **Later (not v1):**
 - Detect movie vs TV series, default each to a standard naming layout, and suggest file renames.
@@ -37,7 +37,7 @@ Match encoded `.mkv` files with the `.mka` files that share their exact base nam
 The action is called **Split** everywhere in the app (heading, button, menu item, logs), to pair with **Remux**.
 
 ### Source / Output
-- Source folder: full MKVs containing video, audio, subtitles and chapters. v1 scans the **top level only**; child folders are a later feature if needed.
+- Source folder: `.mkv` files. Split needs at least one audio track. Subtitles and chapters are copied when the source has them and are not required. v1 scans the **top level only**; child folders are a later feature if needed.
 - Output folder: clean `.mka` files named `<source base name>.mka`.
 
 ### Steps
@@ -47,11 +47,13 @@ The action is called **Split** everywhere in the app (heading, button, menu item
 4. **Existing output:** on scan or re-scan (when the source folder syncs), any file whose `<base name>.mka` already exists in the output folder is flagged so the user can see a copy exists. Existing files are never silently overwritten.
 5. User reviews the queue and can skip items.
 6. User clicks **Split**.
-7. The app runs `mkvmerge` to write a clean `.mka` with only the audio, subtitles and chapters.
+7. The app runs `mkvmerge` to write a clean `.mka` with the audio tracks and, when the source has them, the subtitle tracks and chapters.
 8. **Errors:** if a file fails, it is marked failed with its error and the rest of the batch keeps going. A summary is shown at the end.
 
 ### Track rules (v1)
-- Keep **all** audio tracks and **all** subtitle tracks, plus chapters.
+- Keep **all** audio tracks. Keep **all** subtitle tracks and the chapters when the source has them.
+- A file with audio but no subtitles, no chapters, or neither is still split. The queue row stays Ready and the Reason column names what was missing.
+- A file with no audio track is flagged and is not split.
 - Drop the video track.
 - Strip **all** tags and metadata: global tags, track tags, track names, language codes, default/forced flags, and anything else.
 - Picking specific audio/subtitle tracks when a file has several is **deferred** until Arezhik clarifies the selection rules.
@@ -150,7 +152,7 @@ Functional requirements only; Design Bot sets the layout and visual contract bef
 
 Shell out to the installed `mkvmerge` (see Architecture for lookup: Homebrew paths, any `MKVToolNix*.app` in `/Applications` since the app folder name includes a version, e.g. `MKVToolNix-103-1.app`, then the Settings override). Exact options to be verified against the manual for the installed version (MKVToolNix 103) during research before coding.
 
-**Strip everything (both workflows):** all global and track tags, track statistics tags, attachments (fonts, cover art), track names, language codes, default/forced flags and the file title. v1 keeps **all** audio and subtitle tracks and passes no track IDs.
+**Strip everything (both workflows):** all global and track tags, track statistics tags, attachments (fonts, cover art), track names, language codes, default/forced flags and the file title. v1 keeps **all** audio tracks and any subtitle tracks, and passes no track IDs.
 
 **Workflow 1 (Split) — draft command:**
 ```bash
@@ -171,7 +173,7 @@ mkvmerge -o "<output>/<base>.mkv" --title "" --no-date --disable-track-statistic
 The video track's name, language and flags are cleared the same way as Split's tracks (decided 2026-11-18). The `.mka` tracks are already clean from Split, so they get no per-track options. All paths are absolute: mkvmerge has no `--`, and an argument starting with `@` is read as an option file.
 Corrects Arezhik's `test-remux.sh`, where `--chapters "$mka"` consumed the `.mka` as a chapters file so its audio and subtitles were never added, and hard-coded track IDs pointed at nothing. Resulting order: video, then the `.mka`'s audio and subtitles (in Split's order), then chapters.
 
-**Scan / sync probes:** every scan runs `mkvmerge -J` (alias for `--identification-format json --identify`; there is no `--identify-json` option) on each file to detect tracks, note audio or subtitle tracks in Remux video files (Ready, `Uses video only, ignores …`), and flag existing output (`.mka` in Split, `.mkv` in Remux).
+**Scan / sync probes:** every scan runs `mkvmerge -J` (alias for `--identification-format json --identify`; there is no `--identify-json` option) on each file to detect tracks, note audio or subtitle tracks in Remux video files (Ready, `Uses video only, ignores …`), warn on a Split source that has audio but no subtitles or no chapters (Ready, `No subtitle tracks found` / `No chapters found`), and flag existing output (`.mka` in Split, `.mkv` in Remux).
 
 **Exit codes:** 0 = Done; 1 = finished with warnings, row gets a warning icon and short message (requirements may be refined later); 2 = Failed.
 
@@ -189,7 +191,7 @@ Run on every scan / sync; issues are flagged and the user is informed.
 - **Hidden files:** ignore hidden files and macOS `._` AppleDouble files (common on external drives).
 - **Bad files:** flag zero-length files and files `mkvmerge -J` cannot read. `-J` exits 0 even for unreadable files, so the app reads its JSON: not recognized, an `errors` entry, a container that isn't Matroska, or no tracks at all.
 - **Remux pairing:** the video and MKA folders should mirror each other; flag any `.mkv` without a matching `.mka` and any `.mka` without a matching `.mkv`.
-- **Split sources:** flag a source that can't be split, or that has no audio track or no subtitle track (missing either one). Chapters are optional.
+- **Split sources:** flag a source that can't be split, or that has no audio track. Subtitles and chapters are optional and are copied when present. Missing subtitles, missing chapters, or both are a Ready warning, not a blocking Issue. Missing audio is a blocking Issue. A source with no audio and no subtitles is an Issue (`No audio or subtitle tracks found`), because there is nothing to split.
 - **Existing output:** flag (see Workflows 1 and 2).
 - **Also flagged (decided 2026-11-18, Phase 2 research):** a Remux video file with no video track; a `.mka` with no audio and no subtitle tracks; a file that isn't Matroska inside; a Remux Output folder that is the Video folder.
 - **Still changing:** flag files modified within the last minute at scan time (normally all files are in place before running). Exception: a Remux scan doesn't flag an `.mka` that this session's Split batch just wrote, when its path, size and modification date match exactly (L32).

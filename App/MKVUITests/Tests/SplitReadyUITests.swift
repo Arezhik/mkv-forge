@@ -1,6 +1,7 @@
 import XCTest
 
-// UIT-P0-01, UIT-P0-02, and UIT-P2-02. One settled Split file with audio and subtitles.
+// UIT-P0-01, UIT-P0-02, and UIT-P2-02. One settled Split file with audio and subtitles
+// and no chapters. The row is Ready with Reason `No chapters found`.
 // Launch arguments stay `--uitesting`. Locators stay on pages and components.
 
 @MainActor
@@ -72,7 +73,7 @@ final class SplitReadyUITests: BaseUITest {
         }
 
         XCTContext.runActivity(named: "Row stays Ready and Split is disabled") { _ in
-            page.queueRow(stem: "sample").requireExactLabel("sample, Ready")
+            page.queueRow(stem: "sample").requireExactLabel("sample, Ready, No chapters found")
             page.assertPrimary(titled: "Split", enabled: false)
         }
 
@@ -101,7 +102,7 @@ final class SplitReadyUITests: BaseUITest {
         }
 
         XCTContext.runActivity(named: "sample is Ready") { _ -> Void in
-            page.queueRow(stem: "sample").requireExactLabel("sample, Ready")
+            page.queueRow(stem: "sample").requireExactLabel("sample, Ready, No chapters found")
         }
 
         return page

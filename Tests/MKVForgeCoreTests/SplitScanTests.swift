@@ -13,8 +13,20 @@ final class SplitScanTests: XCTestCase {
         return (result, identifier)
     }
 
+    /// A Ready row starts checked and is a job when that name is checked.
+    private func readyRow(_ result: ScanResult, _ name: String, file: StaticString = #filePath, line: UInt = #line) throws -> ScanItem {
+        let item = try XCTUnwrap(result.item(name), file: file, line: line)
+        XCTAssertTrue(item.isReady, file: file, line: line)
+        XCTAssertTrue(item.issues.isEmpty, "\(name) is an Issue", file: file, line: line)
+        var state = ModeState(mode: .split)
+        state.applyScan(result)
+        XCTAssertEqual(state.row(name)?.isChecked, true, file: file, line: line)
+        XCTAssertEqual(RunJob.jobs(from: result, checked: [name]).map(\.baseName), [name], file: file, line: line)
+        return item
+    }
+
     func testReadyFileHasPathsAndTracks() async throws {
-        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio, .subtitles)])
+        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio, .subtitles, chapterEditions: 1)])
         let item = try XCTUnwrap(result.item("A"))
         XCTAssertTrue(item.isReady)
         XCTAssertNil(item.reasonText)
@@ -22,14 +34,17 @@ final class SplitScanTests: XCTestCase {
         XCTAssertEqual(item.sourcePath, "/media/Rips/A.mkv")
         XCTAssertEqual(item.outputPath, "/media/Audio/A.mka")
         XCTAssertEqual(item.sourceInfo?.tracks.count, 3)
+        XCTAssertEqual(item.notes, [])
         XCTAssertEqual(result.mode, .split)
         XCTAssertEqual(result.scannedAt, F.scanTime)
         XCTAssertEqual(result.readyCount, 1)
     }
 
     func testChaptersAreOptionalAndSeveralTracksAreFine() async throws {
-        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio, .audio, .subtitles, .subtitles)])
-        XCTAssertEqual(result.item("A")?.isReady, true)
+        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio, .audio, .subtitles, .subtitles, chapterEditions: 1)])
+        let item = try readyRow(result, "A")
+        XCTAssertEqual(item.notes, [])
+        XCTAssertNil(item.reasonText)
     }
 
     func testExistingOutputIsFlaggedAndStillIdentified() async throws {
@@ -41,7 +56,8 @@ final class SplitScanTests: XCTestCase {
         let item = try XCTUnwrap(result.item("A"))
         XCTAssertEqual(item.issues, [.noAudio(fileName: "A.mkv"), .outputExists(fileName: "A.mka")])
         XCTAssertEqual(item.reasonText, "No audio tracks found (+1 more)")
-        XCTAssertEqual(item.helpText, "No audio tracks found in A.mkv. Split needs at least one audio track and one subtitle track.\nA.mka is already in the Output folder. MKVForge never overwrites files. Move or rename it, then scan again.")
+        XCTAssertEqual(item.notes, [])
+        XCTAssertEqual(item.helpText, "No audio tracks found in A.mkv. Split needs at least one audio track.\nA.mka is already in the Output folder. MKVForge never overwrites files. Move or rename it, then scan again.")
         let calls = await identifier.calls
         XCTAssertEqual(calls, ["/media/Rips/A.mkv"])
     }
@@ -100,18 +116,65 @@ final class SplitScanTests: XCTestCase {
 
     func testMissingAudioOrSubtitles() async throws {
         let (result, _) = try await scan(
-            [F.file("NoAudio.mkv"), F.file("NoSubs.mkv"), F.file("VideoOnly.mkv")],
+            [F.file("NoAudio.mkv"), F.file("VideoOnly.mkv")],
             probes: [
                 "/media/Rips/NoAudio.mkv": F.media(.video, .subtitles),
-                "/media/Rips/NoSubs.mkv": F.media(.video, .audio),
                 "/media/Rips/VideoOnly.mkv": F.media(.video),
             ]
         )
-        XCTAssertEqual(result.item("NoAudio")?.reasonText, "No audio tracks found")
-        XCTAssertEqual(result.item("NoSubs")?.reasonText, "No subtitle tracks found")
-        XCTAssertEqual(result.item("VideoOnly")?.reasonText, "No audio or subtitle tracks found")
-        XCTAssertEqual(result.item("VideoOnly")?.helpText, "No audio or subtitle tracks found in VideoOnly.mkv, so there's nothing to split.")
-        XCTAssertEqual(result.flaggedCount, 3)
+        let noAudio = try XCTUnwrap(result.item("NoAudio"))
+        XCTAssertEqual(noAudio.issues, [.noAudio(fileName: "NoAudio.mkv")])
+        XCTAssertEqual(noAudio.notes, [])
+        XCTAssertEqual(noAudio.reasonText, "No audio tracks found")
+        XCTAssertEqual(noAudio.helpText, "No audio tracks found in NoAudio.mkv. Split needs at least one audio track.")
+        XCTAssertFalse(noAudio.helpText?.contains("subtitle track") ?? true)
+        XCTAssertFalse(noAudio.isReady)
+
+        let videoOnly = try XCTUnwrap(result.item("VideoOnly"))
+        XCTAssertEqual(videoOnly.issues, [.noAudioOrSubtitles(fileName: "VideoOnly.mkv")])
+        XCTAssertEqual(videoOnly.notes, [])
+        XCTAssertEqual(videoOnly.reasonText, "No audio or subtitle tracks found")
+        XCTAssertEqual(videoOnly.helpText, "No audio or subtitle tracks found in VideoOnly.mkv, so there's nothing to split.")
+        XCTAssertFalse(videoOnly.isReady)
+
+        var state = ModeState(mode: .split)
+        state.applyScan(result)
+        XCTAssertEqual(state.row("NoAudio")?.isChecked, false)
+        XCTAssertEqual(state.row("VideoOnly")?.isChecked, false)
+        XCTAssertEqual(RunJob.jobs(from: result, checked: ["NoAudio", "VideoOnly"]), [])
+        XCTAssertEqual(result.flaggedCount, 2)
+    }
+
+    func testAudioSubtitlesAndChaptersAreReadyWithNoNotes() async throws {
+        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio, .subtitles, chapterEditions: 1)])
+        let item = try readyRow(result, "A")
+        XCTAssertEqual(item.notes, [])
+        XCTAssertNil(item.reasonText)
+        XCTAssertNil(item.helpText)
+    }
+
+    func testMissingChaptersIsReadyWithAWarning() async throws {
+        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio, .subtitles)])
+        let item = try readyRow(result, "A")
+        XCTAssertEqual(item.notes, [.noChapters(fileName: "A.mkv")])
+        XCTAssertEqual(item.reasonText, "No chapters found")
+        XCTAssertEqual(item.helpText, "No chapters found in A.mkv. The .mka will include its audio and subtitle tracks (if any).")
+    }
+
+    func testMissingSubtitlesIsReadyWithAWarning() async throws {
+        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio, chapterEditions: 1)])
+        let item = try readyRow(result, "A")
+        XCTAssertEqual(item.notes, [.noSubtitles(fileName: "A.mkv")])
+        XCTAssertEqual(item.reasonText, "No subtitle tracks found")
+        XCTAssertEqual(item.helpText, "No subtitle tracks found in A.mkv. The .mka will include its audio tracks and chapters (if any).")
+    }
+
+    func testAudioOnlyIsReadyWithBothWarnings() async throws {
+        let (result, _) = try await scan([F.file("A.mkv")], probes: ["/media/Rips/A.mkv": F.media(.video, .audio)])
+        let item = try readyRow(result, "A")
+        XCTAssertEqual(item.notes, [.noSubtitles(fileName: "A.mkv"), .noChapters(fileName: "A.mkv")])
+        XCTAssertEqual(item.reasonText, "No subtitle tracks found (+1 more)")
+        XCTAssertEqual(item.helpText, "No subtitle tracks found in A.mkv. The .mka will include its audio tracks and chapters (if any).\nNo chapters found in A.mkv. The .mka will include its audio and subtitle tracks (if any).")
     }
 
     func testDuplicateNameOnCaseSensitiveVolume() async throws {
