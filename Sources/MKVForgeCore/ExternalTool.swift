@@ -460,6 +460,102 @@ struct StdoutLineSplitter {
     }
 }
 
+/// What one read of a pipe returned. `.end` is a real EOF (zero bytes).
+/// `.failed` is not EOF: the next `.bytes` must still be delivered.
+enum PipePull: Equatable {
+    case bytes(Data)
+    case end
+    /// `EINTR` or `EAGAIN`. Not EOF, and not a failed read.
+    case interrupted
+    case failed(Int32)
+}
+
+/// Assembles pipe chunks into the full buffer and into lines.
+/// A `.failed` pull does not end the stream. The reader stops on `.end`, or after
+/// `failureLimit` failures in a row so a dead descriptor cannot hang the batch.
+struct PipeAssembler {
+    static let failureLimit = 8
+
+    private var splitter = StdoutLineSplitter()
+    private var consecutiveFailures = 0
+    private(set) var data = Data()
+
+    /// True when the reader should keep going. False on EOF or the failure limit.
+    mutating func take(_ pull: PipePull, onLine: ((String) -> Void)?) -> Bool {
+        switch pull {
+        case .interrupted:
+            return true
+        case .end:
+            finish(onLine)
+            return false
+        case let .failed(code):
+            consecutiveFailures += 1
+            DebugLog.shared.record(.error, "Reading the tool pipe failed (errno \(code))", isError: true)
+            if consecutiveFailures >= Self.failureLimit {
+                finish(onLine)
+                return false
+            }
+            return true
+        case let .bytes(chunk):
+            consecutiveFailures = 0
+            guard !chunk.isEmpty else { return true }
+            data.append(chunk)
+            guard let onLine else { return true }
+            for line in splitter.append(chunk) {
+                onLine(line)
+            }
+            return true
+        }
+    }
+
+    private mutating func finish(_ onLine: ((String) -> Void)?) {
+        guard let onLine else { return }
+        for line in splitter.finish() {
+            onLine(line)
+        }
+    }
+}
+
+/// One `read` of whatever is already in the pipe. `FileHandle.read(upToCount:)` is not
+/// used: on Darwin it can block until `count` bytes or EOF, so a short `#GUI#progress`
+/// stream would arrive only when mkvmerge exits. `poll` plus one `read` returns the
+/// bytes already available, which is the same rule as `readabilityHandler` /
+/// `availableData`. A zero-length read is EOF. A negative read is not.
+private enum PipeFile {
+    static func preferShortReads(_ fd: Int32) {
+        let flags = fcntl(fd, F_GETFL, 0)
+        guard flags >= 0 else { return }
+        _ = fcntl(fd, F_SETFL, flags | Int32(O_NONBLOCK))
+    }
+
+    static func pull(_ fd: Int32) -> PipePull {
+        var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        let ready = poll(&pfd, nfds_t(1), -1)
+        if ready < 0 {
+            if errno == EINTR { return .interrupted }
+            return .failed(errno)
+        }
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        let count = buffer.withUnsafeMutableBytes { raw -> Int in
+            guard let base = raw.baseAddress else { return -1 }
+            #if canImport(Darwin)
+            return Darwin.read(fd, base, raw.count)
+            #elseif canImport(Glibc)
+            return Int(Glibc.read(fd, base, raw.count))
+            #elseif canImport(Musl)
+            return Int(Musl.read(fd, base, raw.count))
+            #else
+            return -1
+            #endif
+        }
+        if count > 0 { return .bytes(Data(buffer.prefix(count))) }
+        if count == 0 { return .end }
+        let code = errno
+        if code == EINTR || code == EAGAIN || code == EWOULDBLOCK { return .interrupted }
+        return .failed(code)
+    }
+}
+
 /// Reads a pipe on a background thread. `Pipe` and `FileHandle` are not sendable, so they stay in here.
 private final class PipeReader: @unchecked Sendable {
     private let handle: FileHandle
@@ -469,23 +565,15 @@ private final class PipeReader: @unchecked Sendable {
         self.handle = handle
     }
 
-    /// Reads until EOF. The stored bytes are the whole stream. `onLine` sees each
-    /// complete line as the chunks arrive; stderr is a different reader.
+    /// Reads until a real EOF. The stored bytes are the whole stream. `onLine` sees each
+    /// complete line as the chunks arrive; stderr is a different reader. A failed read
+    /// does not end the stream.
     func readToEnd(onLine: (@Sendable (String) -> Void)? = nil) {
-        var splitter = StdoutLineSplitter()
-        while true {
-            guard let chunk = try? handle.read(upToCount: 65_536), !chunk.isEmpty else { break }
-            data.append(chunk)
-            guard let onLine else { continue }
-            for line in splitter.append(chunk) {
-                onLine(line)
-            }
-        }
-        if let onLine {
-            for line in splitter.finish() {
-                onLine(line)
-            }
-        }
+        let fd = handle.fileDescriptor
+        PipeFile.preferShortReads(fd)
+        var assembler = PipeAssembler()
+        while assembler.take(PipeFile.pull(fd), onLine: onLine) {}
+        data = assembler.data
     }
 }
 

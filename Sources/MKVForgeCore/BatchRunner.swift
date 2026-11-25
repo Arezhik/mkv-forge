@@ -20,6 +20,7 @@ import Foundation
 //   here (L28).
 // - The mux process is `mkvmerge --gui-mode`. That flag is not added to `mkvmerge -J`
 //   or `--version`. `#GUI#progress` becomes a throttled ETA on the batch caption.
+//   The throttle uses the runner's wall clock. Elapsed stays the mux time on the sample.
 
 /// Runs mkvmerge with arguments. The app uses `MKVMergeProcess`; tests use a fake.
 /// `onProgress` is each mux percent (0...100) from `#GUI#progress`.
@@ -123,7 +124,8 @@ public final class BatchRunner: Sendable {
                 finished: finishedDurations,
                 queuedAfterCurrent: jobs.count - index,
                 isCancelled: { [stopFlag] in stopFlag.isSet },
-                onEvent: onEvent
+                onEvent: onEvent,
+                clock: clock
             )
             let status: JobStatus
             do {
@@ -299,18 +301,21 @@ final class ETAPublisher: @unchecked Sendable {
     private let queuedAfterCurrent: Int
     private let isCancelled: @Sendable () -> Bool
     private let onEvent: @Sendable (RunEvent) -> Void
+    private let clock: @Sendable () -> Date
     private var duration: TimeInterval?
 
     init(
         finished: [TimeInterval],
         queuedAfterCurrent: Int,
         isCancelled: @escaping @Sendable () -> Bool,
-        onEvent: @escaping @Sendable (RunEvent) -> Void
+        onEvent: @escaping @Sendable (RunEvent) -> Void,
+        clock: @escaping @Sendable () -> Date
     ) {
         self.finished = finished
         self.queuedAfterCurrent = queuedAfterCurrent
         self.isCancelled = isCancelled
         self.onEvent = onEvent
+        self.clock = clock
     }
 
     func receive(percent: Int, elapsed: TimeInterval) {
@@ -321,7 +326,10 @@ final class ETAPublisher: @unchecked Sendable {
             queuedAfterCurrent: queuedAfterCurrent,
             cancelled: isCancelled()
         )
-        let now = Date(timeIntervalSinceReferenceDate: elapsed)
+        // `elapsed` is only the sample. The throttle needs a wall clock: a burst
+        // that shares one elapsed used to collapse onto one date and drop every
+        // sentence after the first, then force-hide at 100%.
+        let now = clock()
         lock.lock()
         let event = eta.event(for: sample, at: now)
         lock.unlock()

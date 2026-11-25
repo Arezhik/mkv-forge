@@ -199,11 +199,14 @@ final class BatchRunnerTests: XCTestCase {
         // A: start, 50% at +10s, end at +16s (duration 16). Two files still queued.
         // B: start, 25% at +10s from its start, end +20s later. One file still queued.
         // C: start and end, no percent.
+        // Each progress reads the clock twice: once for elapsed, once for the throttle.
         let times = [
             origin,
             origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
             origin.addingTimeInterval(16),
             origin.addingTimeInterval(16),
+            origin.addingTimeInterval(26),
             origin.addingTimeInterval(26),
             origin.addingTimeInterval(36),
             origin.addingTimeInterval(36),
@@ -229,10 +232,14 @@ final class BatchRunnerTests: XCTestCase {
     func testProgressHidesAtZeroPercentAndAtOneHundred() async throws {
         let job = try RunFixture.split("A", in: folders)
         let origin = Date(timeIntervalSince1970: 1_800_000_000)
+        // Each progress reads the clock twice: once for elapsed, once for the throttle.
         let times = [
             origin,
             origin.addingTimeInterval(10),
             origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10.05),
             origin.addingTimeInterval(10.05),
             origin.addingTimeInterval(20),
         ]
@@ -245,6 +252,89 @@ final class BatchRunnerTests: XCTestCase {
         }
         XCTAssertEqual(captions, ["About 10 seconds left", ""])
         XCTAssertEqual(clock.calls, times.count)
+    }
+
+    /// The slowed mkvmerge log: 11, 29, 48, 66, 85, 99, 100 about 0.9s apart.
+    /// A non-empty caption is published before 100%, and 100% publishes "".
+    func testProgressSamplesSpacedLikeALongMuxShowACaptionUntilOneHundred() async throws {
+        let job = try RunFixture.split("A", in: folders)
+        let origin = Date(timeIntervalSince1970: 1_900_000_000)
+        let percents = [11, 29, 48, 66, 85, 99, 100]
+        var times = [origin]
+        for index in 1...percents.count {
+            let sample = origin.addingTimeInterval(0.9 * Double(index))
+            times.append(sample) // elapsed
+            times.append(sample) // wall clock for the throttle
+        }
+        times.append(origin.addingTimeInterval(0.9 * Double(percents.count)))
+        let clock = ScriptedClock(times)
+        let tool = FakeMKVMerge(["A": FakeRun(status: 0, progress: percents)])
+        let (_, log) = await run([job], tool, clock: { clock.call() })
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, [
+            "About 7 seconds left",
+            "About 4 seconds left",
+            "About 3 seconds left",
+            "About 2 seconds left",
+            "About 1 second left",
+            "",
+        ])
+        XCTAssertFalse(captions.dropLast().contains(""))
+        XCTAssertEqual(clock.calls, times.count)
+    }
+
+    /// Same sample elapsed, wall clocks at least 0.1s apart. Fails if `receive` passes
+    /// `Date(timeIntervalSinceReferenceDate: elapsed)` as `now`: both samples would
+    /// share one throttle date and the second sentence would be dropped.
+    func testSameElapsedPublishesWhenWallClocksDiffer() {
+        let origin = Date(timeIntervalSince1970: 1_910_000_000)
+        let clock = ScriptedClock([origin, origin.addingTimeInterval(0.1)])
+        let log = EventLog()
+        let publisher = ETAPublisher(
+            finished: [],
+            queuedAfterCurrent: 0,
+            isCancelled: { false },
+            onEvent: { log.append($0) },
+            clock: { clock.call() }
+        )
+        publisher.receive(percent: 11, elapsed: 5)
+        publisher.receive(percent: 29, elapsed: 5)
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 40 seconds left", "About 12 seconds left"])
+        XCTAssertEqual(clock.calls, 2)
+    }
+
+    /// A burst on one wall-clock instant still drops the middle sentence. 100% hides
+    /// immediately. This is the throttle, not the elapsed-as-date bug.
+    func testSameWallClockDropsTheMiddleSampleAndOneHundredStillHides() {
+        let instant = Date(timeIntervalSince1970: 1_920_000_000)
+        let clock = ScriptedClock([
+            instant,
+            instant,
+            instant.addingTimeInterval(0.05),
+        ])
+        let log = EventLog()
+        let publisher = ETAPublisher(
+            finished: [],
+            queuedAfterCurrent: 0,
+            isCancelled: { false },
+            onEvent: { log.append($0) },
+            clock: { clock.call() }
+        )
+        publisher.receive(percent: 11, elapsed: 5)
+        publisher.receive(percent: 48, elapsed: 6)
+        publisher.receive(percent: 100, elapsed: 7)
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 40 seconds left", ""])
     }
 }
 
