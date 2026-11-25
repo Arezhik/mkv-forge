@@ -148,7 +148,7 @@ final class StatusLinesTests: XCTestCase {
         state.apply(.started(id: "A", index: 1, total: 2))
         state.apply(.progress(caption: "About 12 seconds left"))
         let row = state.rows.first { $0.baseName == "A" }
-        let display = RowDisplay(XCTUnwrap(row), mode: .split, locked: true)
+        let display = RowDisplay(try XCTUnwrap(row), mode: .split, locked: true)
         XCTAssertTrue(display.showsSpinner)
         XCTAssertNil(display.symbol)
         XCTAssertEqual(display.statusText, "Splitting…")
