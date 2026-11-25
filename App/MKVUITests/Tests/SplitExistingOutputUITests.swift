@@ -45,7 +45,7 @@ final class SplitExistingOutputUITests: BaseUITest {
 
         XCTContext.runActivity(named: "keep is an existing-output Issue and fresh is Ready") { _ in
             page.queueRow(stem: "keep").requireExactLabel("keep, Issue, keep.mka already exists in Output folder")
-            page.queueRow(stem: "fresh").requireExactLabel("fresh, Ready")
+            page.queueRow(stem: "fresh").requireExactLabel("fresh, Ready, No chapters found")
         }
 
         XCTContext.runActivity(named: "Run Split") { _ in

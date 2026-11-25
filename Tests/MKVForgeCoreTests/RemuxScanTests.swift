@@ -118,6 +118,21 @@ final class RemuxScanTests: XCTestCase {
         XCTAssertEqual(result.item("B")?.reasonText, "No audio or subtitle tracks in the .mka")
     }
 
+    func testAudioOnlyMKAWithVideoIsReady() async throws {
+        let (result, _) = try await scan(
+            video: [F.file("A.mkv")],
+            audio: [F.file("A.mka")],
+            probes: pairProbes("A", video: F.media(.video), mka: F.media(.audio))
+        )
+        let item = try XCTUnwrap(result.item("A"))
+        XCTAssertTrue(item.isReady)
+        XCTAssertEqual(item.issues, [])
+        XCTAssertFalse(item.issues.contains { if case .mkaHasNoAudioOrSubtitles = $0 { return true } else { return false } })
+        XCTAssertEqual(item.notes, [])
+        XCTAssertNil(item.reasonText)
+        XCTAssertEqual(RunJob.jobs(from: result, checked: ["A"]).map(\.baseName), ["A"])
+    }
+
     func testUnreadableAndNotMatroskaOnEachSide() async throws {
         let (result, _) = try await scan(
             video: [F.file("A.mkv"), F.file("B.mkv")],

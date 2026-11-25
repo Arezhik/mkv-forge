@@ -7,7 +7,8 @@ import Foundation
 //   %; Done `checkmark.circle.fill` (green); Done · warning `exclamationmark.triangle.fill`
 //   (yellow icon); Failed `xmark.octagon.fill` (red).
 // - Reason: the issue, the first mkvmerge warning line with `(+N more)`, or the error;
-//   a Ready row shows its scan note (`Uses video only, …`); `—` when there's none. The
+//   a Ready row shows its scan note (`Uses video only, …`, or a Split warning such as
+//   `No chapters found`); `—` when there's none. The
 //   help tag holds the full text.
 // - Flagged rows: checkbox unchecked and disabled, `.help("Flagged: <reason>")`, full contrast.
 // - VoiceOver: one element `<name>, <status>, <reason>`; checkbox `Include <name>`.

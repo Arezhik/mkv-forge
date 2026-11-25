@@ -48,8 +48,10 @@ enum ScanFixture {
     }
 
     /// A readable Matroska file with these tracks, IDs from 0.
-    static func media(_ kinds: TrackKind..., type: String = "Matroska") -> MediaProbe {
-        .readable(MediaInfo(containerType: type, tracks: kinds.enumerated().map { TrackInfo(id: $0.offset, kind: $0.element) }))
+    /// `chapterEditions` defaults to 0 (no chapters). Split treats that as a Ready note
+    /// when the file has audio, so a fixture that should have no Reason passes a count.
+    static func media(_ kinds: TrackKind..., type: String = "Matroska", chapterEditions: Int = 0) -> MediaProbe {
+        .readable(MediaInfo(containerType: type, tracks: kinds.enumerated().map { TrackInfo(id: $0.offset, kind: $0.element) }, chapterEditions: chapterEditions))
     }
 
     static func scanner(_ lister: FakeLister, _ identifier: FakeIdentifier, maxConcurrentProbes: Int = 4) -> FolderScanner {

@@ -1,6 +1,7 @@
 import XCTest
 
-// Show Ready in Split. One settled empty MKV is Issue. One settled sample is Ready.
+// Show Ready in Split. One settled empty MKV is Issue. One settled sample (audio and
+// subtitles, no chapters) is Ready with Reason `No chapters found`.
 // Launch arguments stay `--uitesting`. Locators stay on the page and the bottom bar.
 
 @MainActor
@@ -30,7 +31,7 @@ final class ShowReadySplitUITests: BaseUITest {
 
         XCTContext.runActivity(named: "Issue and Ready are both visible") { _ -> Void in
             page.queueRow(stem: "empty").requireExactLabel("empty, Issue, Empty file (0 bytes)")
-            page.queueRow(stem: "sample").requireExactLabel("sample, Ready")
+            page.queueRow(stem: "sample").requireExactLabel("sample, Ready, No chapters found")
         }
 
         XCTContext.runActivity(named: "Turn Show Ready on") { _ in
@@ -39,7 +40,7 @@ final class ShowReadySplitUITests: BaseUITest {
 
         XCTContext.runActivity(named: "Issue is hidden and Ready stays") { _ -> Void in
             page.queueRow(stem: "empty").assertExactLabelAbsent("empty, Issue, Empty file (0 bytes)")
-            page.queueRow(stem: "sample").requireExactLabel("sample, Ready")
+            page.queueRow(stem: "sample").requireExactLabel("sample, Ready, No chapters found")
         }
 
         XCTContext.runActivity(named: "Turn Show Ready off") { _ in
@@ -48,7 +49,7 @@ final class ShowReadySplitUITests: BaseUITest {
 
         XCTContext.runActivity(named: "Issue returns") { _ -> Void in
             page.queueRow(stem: "empty").requireExactLabel("empty, Issue, Empty file (0 bytes)")
-            page.queueRow(stem: "sample").requireExactLabel("sample, Ready")
+            page.queueRow(stem: "sample").requireExactLabel("sample, Ready, No chapters found")
         }
     }
 }
