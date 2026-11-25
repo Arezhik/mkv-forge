@@ -102,7 +102,7 @@ public final class BatchRunner: Sendable {
     /// flagged rows, for the summary. `onEvent` may arrive from the runner's task or,
     /// for a progress caption, from the tool's stdout reader.
     @discardableResult
-    public func run(_ jobs: [RunJob], flaggedCount: Int, onEvent: @Sendable (RunEvent) -> Void = { _ in }) async -> BatchSummary {
+    public func run(_ jobs: [RunJob], flaggedCount: Int, onEvent: @escaping @Sendable (RunEvent) -> Void = { _ in }) async -> BatchSummary {
         stopFlag.clear()
         let mode = jobs.first?.mode ?? .split
         var summary = BatchSummary(mode: mode, filesInRun: jobs.count, flagged: flaggedCount)
