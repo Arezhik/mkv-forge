@@ -11,6 +11,8 @@ struct FakeRun: Sendable {
     var createsOutput = false
     /// Throw instead of running.
     var throwing: ToolFailure?
+    /// Percents reported while this file runs, in order.
+    var progress: [Int] = []
     /// Call Cancel (requestStop) while this file runs.
     var requestsStop = false
     /// Cancel the running task while this file runs (a hard stop).
@@ -42,7 +44,7 @@ final class FakeMKVMerge: MKVMergeRunning, @unchecked Sendable {
         return (key.flatMap { runs[$0] } ?? FakeRun(), runner)
     }
 
-    func run(_ arguments: [String]) async throws -> ToolCommandResult {
+    func run(_ arguments: [String], onProgress: @escaping @Sendable (Int) -> Void) async throws -> ToolCommandResult {
         let temp = arguments[arguments.firstIndex(of: "-o")! + 1]
         let tempName = (temp as NSString).lastPathComponent
         let (script, runner) = record(arguments, tempName: tempName)
@@ -54,6 +56,9 @@ final class FakeMKVMerge: MKVMergeRunning, @unchecked Sendable {
         if script.createsOutput {
             let output = (temp as NSString).deletingLastPathComponent + "/" + String(tempName.dropFirst().replacingOccurrences(of: ".partial", with: ""))
             try Data("someone else's file".utf8).write(to: URL(fileURLWithPath: output))
+        }
+        for percent in script.progress {
+            onProgress(percent)
         }
         if script.requestsStop { runner?.requestStop() }
         if script.cancelsTask {

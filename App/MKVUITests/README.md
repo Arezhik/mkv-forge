@@ -94,7 +94,7 @@ Folder fields are different: they set `accessibilityLabel` explicitly, so `label
 | `bottomSummary` | The bottom-bar summary. Its accessibility label is the plain summary, such as `Finished · 1 done`. |
 | `showInFinder` | The bottom-bar Show in Finder button. Not the folder-field or row context-menu item of the same title. Do not click it. |
 | `batchProgress` | The batch bar's VoiceOver text. Label `Batch progress`, value `1 of 1 complete`. Not the `NSProgressIndicator`: XCTest reads that indicator's value as `""`. |
-| `batchProgressCaption` | The finished-run caption under the progress bar. The text is exact, such as `1 .mka saved`. |
+| `batchProgressCaption` | The caption under the progress bar. While a batch runs it is the time remaining, such as `About 2 minutes left`, or absent when that estimate is hidden. After a finish the text is exact, such as `1 .mka saved`. |
 | `unmatchButton` | Unmatch on a pair you picked. The accessible name is `Unmatch <video> from <audio>`. The on-screen title stays `Unmatch`. Link-style, so the query includes `links` and `buttons`. |
 | `mkvToolNixSection` | Settings heading `MKVToolNix`. Exact label, value, title, or this identifier. A grouped form header may be a group, not a static text. |
 | Scan button | Title `"Scan"`. Disabled without MKVToolNix. `MainWindowPage.clickScanOrSkip()` throws `XCTSkip("Scan is disabled (needs MKVToolNix); folder seeding was verified")` when `isEnabled` is false. Do not fail the test for a missing tool. Do not query `app.buttons["Scan"]` from a test. |

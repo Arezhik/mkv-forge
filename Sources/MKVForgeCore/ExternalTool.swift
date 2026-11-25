@@ -235,10 +235,16 @@ public struct ToolCommandResult: Equatable, Sendable {
 
 public enum ToolCommand {
     /// Runs the tool off the main thread. Cancelling the calling task kills the process.
-    public static func run(executable: String, arguments: [String]) async throws -> ToolCommandResult {
+    /// `onStdoutLine` is each complete stdout line, split on `\n` and `\r`, as the bytes
+    /// arrive. The returned buffer is still the full stdout.
+    public static func run(
+        executable: String,
+        arguments: [String],
+        onStdoutLine: (@Sendable (String) -> Void)? = nil
+    ) async throws -> ToolCommandResult {
         let runner = CommandRunner()
         return try await withTaskCancellationHandler {
-            try await runner.start(executable: executable, arguments: arguments)
+            try await runner.start(executable: executable, arguments: arguments, onStdoutLine: onStdoutLine)
         } onCancel: {
             runner.cancel()
         }
@@ -260,11 +266,15 @@ private final class CommandRunner: @unchecked Sendable {
         stop(process)
     }
 
-    func start(executable: String, arguments: [String]) async throws -> ToolCommandResult {
+    func start(
+        executable: String,
+        arguments: [String],
+        onStdoutLine: (@Sendable (String) -> Void)?
+    ) async throws -> ToolCommandResult {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ToolCommandResult, Error>) in
             let resume = ResumeBox(continuation)
             DispatchQueue.global(qos: .userInitiated).async {
-                let result = Result { try self.blocking(executable: executable, arguments: arguments) }
+                let result = Result { try self.blocking(executable: executable, arguments: arguments, onStdoutLine: onStdoutLine) }
                 resume.resume(result)
             }
         }
@@ -302,7 +312,11 @@ private final class CommandRunner: @unchecked Sendable {
         lock.unlock()
     }
 
-    private func blocking(executable: String, arguments: [String]) throws -> ToolCommandResult {
+    private func blocking(
+        executable: String,
+        arguments: [String],
+        onStdoutLine: (@Sendable (String) -> Void)?
+    ) throws -> ToolCommandResult {
         let command = ToolCommandFormatting.line(executable: executable, arguments: arguments)
         if isCancelled {
             ToolCommandFormatting.logCancelled(command)
@@ -337,7 +351,7 @@ private final class CommandRunner: @unchecked Sendable {
         let group = DispatchGroup()
         group.enter()
         DispatchQueue.global(qos: .userInitiated).async {
-            stdout.readToEnd()
+            stdout.readToEnd(onLine: onStdoutLine)
             group.leave()
         }
         group.enter()
@@ -391,6 +405,61 @@ enum ToolCommandFormatting {
     }
 }
 
+/// Splits stdout chunks on `\n` and `\r` (`\r\n` is one break). A trailing `\r` is held
+/// until the next byte, so a split `\r\n` does not become an empty line.
+struct StdoutLineSplitter {
+    private var pending = Data()
+
+    mutating func append(_ chunk: Data) -> [String] {
+        guard !chunk.isEmpty else { return [] }
+        pending.append(chunk)
+        return pull(flush: false)
+    }
+
+    mutating func finish() -> [String] {
+        pull(flush: true)
+    }
+
+    private mutating func pull(flush: Bool) -> [String] {
+        var lines: [String] = []
+        var cursor = pending.startIndex
+        var lineStart = pending.startIndex
+        while cursor < pending.endIndex {
+            let byte = pending[cursor]
+            let isCR = byte == 13
+            let isLF = byte == 10
+            if !isCR && !isLF {
+                cursor = pending.index(after: cursor)
+                continue
+            }
+            if lineStart < cursor {
+                lines.append(Self.decode(pending.subdata(in: lineStart..<cursor)))
+            }
+            let after = pending.index(after: cursor)
+            if isCR, after == pending.endIndex, !flush {
+                pending.removeSubrange(..<cursor)
+                return lines
+            }
+            if isCR, after < pending.endIndex, pending[after] == 10 {
+                cursor = pending.index(after: after)
+            } else {
+                cursor = after
+            }
+            lineStart = cursor
+        }
+        pending.removeSubrange(..<lineStart)
+        if flush, !pending.isEmpty {
+            lines.append(Self.decode(pending))
+            pending.removeAll()
+        }
+        return lines
+    }
+
+    private static func decode(_ data: Data) -> String {
+        String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+    }
+}
+
 /// Reads a pipe on a background thread. `Pipe` and `FileHandle` are not sendable, so they stay in here.
 private final class PipeReader: @unchecked Sendable {
     private let handle: FileHandle
@@ -400,8 +469,23 @@ private final class PipeReader: @unchecked Sendable {
         self.handle = handle
     }
 
-    func readToEnd() {
-        data = (try? handle.readToEnd()) ?? Data()
+    /// Reads until EOF. The stored bytes are the whole stream. `onLine` sees each
+    /// complete line as the chunks arrive; stderr is a different reader.
+    func readToEnd(onLine: (@Sendable (String) -> Void)? = nil) {
+        var splitter = StdoutLineSplitter()
+        while true {
+            guard let chunk = try? handle.read(upToCount: 65_536), !chunk.isEmpty else { break }
+            data.append(chunk)
+            guard let onLine else { continue }
+            for line in splitter.append(chunk) {
+                onLine(line)
+            }
+        }
+        if let onLine {
+            for line in splitter.finish() {
+                onLine(line)
+            }
+        }
     }
 }
 

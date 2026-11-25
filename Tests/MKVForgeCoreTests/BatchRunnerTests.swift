@@ -13,8 +13,14 @@ final class BatchRunnerTests: XCTestCase {
         folders.remove()
     }
 
-    private func run(_ jobs: [RunJob], _ tool: FakeMKVMerge, identifier: FakeIdentifier? = nil, flagged: Int = 0) async -> (BatchSummary, EventLog) {
-        let runner = BatchRunner(tool: tool, identifier: identifier ?? RunFixture.identifier(for: jobs))
+    private func run(
+        _ jobs: [RunJob],
+        _ tool: FakeMKVMerge,
+        identifier: FakeIdentifier? = nil,
+        flagged: Int = 0,
+        clock: @escaping @Sendable () -> Date = { Date() }
+    ) async -> (BatchSummary, EventLog) {
+        let runner = BatchRunner(tool: tool, identifier: identifier ?? RunFixture.identifier(for: jobs), clock: clock)
         tool.runner = runner
         let log = EventLog()
         let summary = await runner.run(jobs, flaggedCount: flagged) { log.append($0) }
@@ -173,5 +179,96 @@ final class BatchRunnerTests: XCTestCase {
         XCTAssertEqual(jobs.map(\.baseName), ["a", "c"])
         XCTAssertEqual(jobs.first?.tempPath, "/o/.a.partial.mka")
         XCTAssertEqual(jobs.first?.sourceInfo, info)
+    }
+
+    func testGUIWarningAndErrorKeepTheSameReason() async throws {
+        let warning = "Warning: '/x/A.mkv': A track with the ID 9 was requested but not found in the file. The corresponding option will be ignored."
+        let guiWarning = "#GUI#warning '/x/A.mkv': A track with the ID 9 was requested but not found in the file. The corresponding option will be ignored."
+        let warned = try RunFixture.split("A", in: folders)
+        let (_, warningLog) = await run([warned], FakeMKVMerge(["A": FakeRun(status: 1, output: "mkvmerge v82.0\r\(guiWarning)\n")]))
+        XCTAssertEqual(warningLog.statuses["A"]?.reasonText, warning)
+
+        let failed = try RunFixture.split("B", in: folders)
+        let (_, errorLog) = await run([failed], FakeMKVMerge(["B": FakeRun(status: 2, output: "#GUI#error The type of file '/x/B.mkv' could not be recognized.\r")]))
+        XCTAssertEqual(errorLog.statuses["B"]?.reasonText, "mkvmerge exit 2: The type of file '/x/B.mkv' could not be recognized.")
+    }
+
+    func testProgressBlendsTheCurrentFileWithFinishedDurations() async throws {
+        let jobs = try ["A", "B", "C"].map { try RunFixture.split($0, in: folders) }
+        let origin = Date(timeIntervalSince1970: 1_700_000_000)
+        // A: start, 50% at +10s, end at +16s (duration 16). Two files still queued.
+        // B: start, 25% at +10s from its start, end +20s later. One file still queued.
+        // C: start and end, no percent.
+        let times = [
+            origin,
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(16),
+            origin.addingTimeInterval(16),
+            origin.addingTimeInterval(26),
+            origin.addingTimeInterval(36),
+            origin.addingTimeInterval(36),
+            origin.addingTimeInterval(36),
+        ]
+        let clock = ScriptedClock(times)
+        let tool = FakeMKVMerge([
+            "A": FakeRun(status: 0, progress: [50]),
+            "B": FakeRun(status: 0, progress: [25]),
+            "C": FakeRun(status: 0),
+        ])
+        let (_, log) = await run(jobs, tool, clock: { clock.call() })
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 50 seconds left", "About 46 seconds left"])
+        XCTAssertEqual(clock.calls, times.count)
+        XCTAssertEqual(log.statuses["A"], .done(outputPath: jobs[0].outputPath))
+        XCTAssertFalse(tool.calls.contains { $0.contains("--gui-mode") }, "the fake sees the command, not the process flag")
+    }
+
+    func testProgressHidesAtZeroPercentAndAtOneHundred() async throws {
+        let job = try RunFixture.split("A", in: folders)
+        let origin = Date(timeIntervalSince1970: 1_800_000_000)
+        let times = [
+            origin,
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10.05),
+            origin.addingTimeInterval(20),
+        ]
+        let clock = ScriptedClock(times)
+        let tool = FakeMKVMerge(["A": FakeRun(status: 0, progress: [0, 50, 100])])
+        let (_, log) = await run([job], tool, clock: { clock.call() })
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 10 seconds left", ""])
+        XCTAssertEqual(clock.calls, times.count)
+    }
+}
+
+private final class ScriptedClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private let dates: [Date]
+    private var index = 0
+
+    init(_ dates: [Date]) {
+        self.dates = dates
+    }
+
+    func call() -> Date {
+        lock.lock()
+        defer { lock.unlock() }
+        precondition(index < dates.count, "scripted clock ran out of dates")
+        let date = dates[index]
+        index += 1
+        return date
+    }
+
+    var calls: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return index
     }
 }

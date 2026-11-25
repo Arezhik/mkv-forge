@@ -66,4 +66,13 @@ final class MKVMergeCommandTests: XCTestCase {
         XCTAssertThrowsError(try MKVMergeCommand.remux(video: "/v/A.mkv", mka: "@opts.json", output: "/o/A.mkv", videoTracks: []))
         XCTAssertThrowsError(try MKVMergeCommand.remux(video: "/v/A.mkv", mka: "/a/A.mka", output: "-o", videoTracks: []))
     }
+
+    func testMuxCommandsLeaveGUIModeToTheProcess() throws {
+        let split = try MKVMergeCommand.split(source: "/in/A.mkv", output: "/out/A.mka", tracks: [TrackInfo(id: 1, kind: .audio)])
+        let remux = try MKVMergeCommand.remux(video: "/v/A.mkv", mka: "/a/A.mka", output: "/o/A.mkv", videoTracks: [TrackInfo(id: 0, kind: .video)])
+        XCTAssertFalse(split.contains("--gui-mode"))
+        XCTAssertFalse(remux.contains("--gui-mode"))
+        XCTAssertEqual(MKVMergeProcess.muxArguments(split), ["--gui-mode"] + split)
+        XCTAssertEqual(MKVMergeProcess.muxArguments(remux), ["--gui-mode"] + remux)
+    }
 }

@@ -45,7 +45,7 @@ struct BottomBarComponent {
     }
 
     /// Label `Batch progress`, value such as `1 of 1 complete`.
-    /// The caption (`1 .mka saved`) is identifier `batchProgressCaption`.
+    /// The caption (`1 .mka saved`, or `About 2 minutes left` while running) is identifier `batchProgressCaption`.
     /// The caption must equal `expectedCaption`. `contains` would let `11 .mka saved`
     /// pass a check for `1 .mka saved`.
     ///

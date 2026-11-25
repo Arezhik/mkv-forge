@@ -39,6 +39,18 @@ final class ExternalToolTests: XCTestCase {
         XCTAssertEqual(result.status, 3)
         XCTAssertEqual(String(decoding: result.standardOutput, as: UTF8.self), "out\n")
 
+        let box = LineBox()
+        let split = try await ToolCommand.run(
+            executable: "/bin/sh",
+            arguments: ["-c", "printf '#GUI#progress 10%%\\r#GUI#progress 20%%\\n'; printf 'tail\\n'; printf 'err-not-stdout\\n' >&2"]
+        ) { line in
+            box.add(line)
+        }
+        XCTAssertEqual(box.lines, ["#GUI#progress 10%", "#GUI#progress 20%", "tail"])
+        XCTAssertEqual(String(decoding: split.standardOutput, as: UTF8.self), "#GUI#progress 10%\r#GUI#progress 20%\ntail\n")
+        XCTAssertFalse(String(decoding: split.standardOutput, as: UTF8.self).contains("err-not-stdout"))
+        XCTAssertTrue(String(decoding: split.standardError, as: UTF8.self).contains("err-not-stdout"))
+
         let task = Task { try await ToolCommand.run(executable: "/bin/sleep", arguments: ["30"]) }
         try await Task.sleep(nanoseconds: 200_000_000)
         let started = Date()
@@ -59,5 +71,41 @@ final class ExternalToolTests: XCTestCase {
         XCTAssertEqual(environment["LANG"], "de_DE.UTF-8")
         XCTAssertEqual(ToolEnvironment.forTools(inheriting: [:])["LC_ALL"], ToolEnvironment.utf8Locale)
         XCTAssertTrue(ToolEnvironment.utf8Locale.hasSuffix(".UTF-8"))
+    }
+
+    func testStdoutSplitterSplitsOnCRAndLFAcrossChunks() {
+        var splitter = StdoutLineSplitter()
+        XCTAssertEqual(splitter.append(Data("#GUI#progress 10%\r".utf8)), ["#GUI#progress 10%"])
+        XCTAssertEqual(splitter.append(Data("\n#GUI#progress 20%\n".utf8)), ["#GUI#progress 20%"])
+
+        var broken = StdoutLineSplitter()
+        XCTAssertEqual(broken.append(Data("hel".utf8)), [])
+        XCTAssertEqual(broken.append(Data("lo\rworld".utf8)), ["hello"])
+        XCTAssertEqual(broken.finish(), ["world"])
+
+        var paired = StdoutLineSplitter()
+        XCTAssertEqual(paired.append(Data("A\r\nB\n".utf8)), ["A", "B"])
+        XCTAssertEqual(paired.finish(), [])
+
+        var held = StdoutLineSplitter()
+        XCTAssertEqual(held.append(Data("A\r".utf8)), ["A"])
+        XCTAssertEqual(held.append(Data("B\n".utf8)), ["B"])
+    }
+}
+
+private final class LineBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [String] = []
+
+    func add(_ line: String) {
+        lock.lock()
+        stored.append(line)
+        lock.unlock()
+    }
+
+    var lines: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
     }
 }
