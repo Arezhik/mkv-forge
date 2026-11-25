@@ -409,14 +409,22 @@ final class AppModel: ObservableObject {
         reveal(RevealPlan.plan(item: path, exists: Self.exists))
     }
 
+    /// `activateFileViewerSelecting` stretches the Finder window to the desktop (#31).
+    private static let selectFileAPI = "NSWorkspace.selectFile(_:inFileViewerRootedAtPath:)"
+
     private func reveal(_ plan: RevealPlan) {
         switch plan {
+        case let .select(paths) where paths.count == 1:
+            let path = paths[0]
+            // An empty root selects the file in the main viewer. A parent folder opens a new one.
+            _ = NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+            DebugLog.shared.record(.lifecycle, "Show in Finder: 1 item(s) api=\(Self.selectFileAPI)")
         case let .select(paths):
-            NSWorkspace.shared.activateFileViewerSelecting(paths.map { URL(fileURLWithPath: $0) })
-            DebugLog.shared.record(.lifecycle, "Show in Finder: \(paths.count) item(s)")
+            // Several files: open their folder with no selection. Selecting them stretches Finder.
+            guard let folder = Self.sharedParentFolder(paths) else { return }
+            revealFolder(folder)
         case let .folder(path):
-            _ = NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
-            DebugLog.shared.record(.lifecycle, "Show in Finder: Output folder")
+            revealFolder(path)
         case let .nothing(reason):
             DebugLog.shared.record(.lifecycle, "Show in Finder: nothing to show (\(reason))", isWarning: true)
             // A clear message when the file is gone (L7).
@@ -431,6 +439,20 @@ final class AppModel: ObservableObject {
                 alert.runModal()
             }
         }
+    }
+
+    private func revealFolder(_ path: String) {
+        _ = NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+        DebugLog.shared.record(.lifecycle, "Show in Finder: Output folder api=\(Self.selectFileAPI)")
+    }
+
+    /// Parent directory shared by every path. Multi-file Show in Finder opens that folder.
+    private static func sharedParentFolder(_ paths: [String]) -> String? {
+        let parents = paths.map {
+            URL(fileURLWithPath: ($0 as NSString).deletingLastPathComponent).standardizedFileURL.path
+        }
+        guard let folder = parents.first, !folder.isEmpty, parents.allSatisfy({ $0 == folder }) else { return nil }
+        return folder
     }
 
     private static func exists(_ path: String) -> Bool {
