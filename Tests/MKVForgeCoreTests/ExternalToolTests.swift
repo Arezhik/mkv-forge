@@ -138,7 +138,7 @@ final class ExternalToolTests: XCTestCase {
         let result = try await ToolCommand.run(executable: "/bin/sh", arguments: ["-c", script]) { line in
             box.add(line)
             if line.contains("11%") {
-                FileManager.default.createFile(atPath: gate.path, contents: Data())
+                XCTAssertTrue(FileManager.default.createFile(atPath: gate.path, contents: Data()))
             }
         }
         let text = String(decoding: result.standardOutput, as: UTF8.self)
