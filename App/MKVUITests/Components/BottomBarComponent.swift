@@ -1,10 +1,12 @@
 import XCTest
 
-// Component: the bottom bar. Summary, batch progress, and Show in Finder.
+// Component: the bottom bar. Summary, batch progress, Show Ready, and Show in Finder.
 // The row context menu also has Show in Finder. This component reads the
 // button identified `showInFinder`, which is the bar button after a finish.
 // Do not click Show in Finder. It opens Finder (issue #31).
 //
+// Show Ready is identifier `showReadyToggle`, label `Show Ready`. It is a
+// bordered toggle, so XCTest may see a button, a checkbox, or a switch.
 // Queries are one element type on `app`. `app.windows["MKVForge"]` does not
 // match the SwiftUI main window, and `descendants(matching: .any)` times out.
 
@@ -106,6 +108,49 @@ struct BottomBarComponent {
         )
     }
 
+    /// Turns the bottom-bar Show Ready toggle on or off.
+    /// Identifier `showReadyToggle`. The accessible name is `Show Ready`.
+    /// One click when the control does not already match `on`.
+    func setShowReady(
+        _ on: Bool,
+        timeout: TimeInterval = UITestTimeout.long,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let toggle = UITestWait.firstExisting(showReadyCandidates(), timeout: timeout) else {
+            XCTFail("Show Ready never showed up in the bottom bar", file: file, line: line)
+            return
+        }
+        let named = toggle.label == "Show Ready"
+            || toggle.title == "Show Ready"
+            || toggle.staticTexts.matchingLabelOrValue(equalTo: "Show Ready").firstMatch.exists
+        XCTAssertTrue(
+            named,
+            "showReadyToggle was label='\(toggle.label)' title='\(toggle.title)'",
+            file: file,
+            line: line
+        )
+        // A bordered toggle sometimes exposes only its title. After one click
+        // fails to move `value`, later calls click again instead of trusting it.
+        let current = Self.valueIsUnreliable ? nil : Self.isOn(toggle)
+        if current == on {
+            return
+        }
+        toggle.click()
+        if current == nil {
+            return
+        }
+        let deadline = Date().addingTimeInterval(min(timeout, 1))
+        while Date() < deadline {
+            let now = Self.isOn(toggle)
+            if now == on || now == nil {
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        Self.valueIsUnreliable = true
+    }
+
     /// The bottom-bar Show in Finder button (`showInFinder`). Does not click it.
     /// Folder fields and Done rows use the same title on a context menu. Those
     /// menus do not have this identifier.
@@ -128,6 +173,35 @@ struct BottomBarComponent {
             file: file,
             line: line
         )
+    }
+
+    /// `showReadyToggle` on a button, checkbox, or switch. Identifier only.
+    /// `value CONTAINS` is not used: a switch value is `0` or `1`.
+    private func showReadyCandidates() -> [XCUIElement] {
+        let predicate = NSPredicate(format: "identifier == %@", "showReadyToggle")
+        return [
+            app.buttons.matching(predicate).firstMatch,
+            app.checkBoxes.matching(predicate).firstMatch,
+            app.switches.matching(predicate).firstMatch,
+        ]
+    }
+
+    /// Set when a click does not change the exposed value. See `setShowReady`.
+    private static var valueIsUnreliable = false
+
+    /// `1` / `on` is on, `0` / `off` is off. A title-only button returns nil.
+    private static func isOn(_ element: XCUIElement) -> Bool? {
+        if let text = element.value as? String {
+            switch text.lowercased() {
+            case "1", "on": return true
+            case "0", "off": return false
+            default: break
+            }
+        }
+        if let number = element.value as? NSNumber {
+            return number.intValue != 0
+        }
+        return nil
     }
 
     private func summaryCandidates() -> [XCUIElement] {

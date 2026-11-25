@@ -208,6 +208,16 @@ class MainWindowPage: BasePage {
 
     var bottomBar: BottomBarComponent { BottomBarComponent(app: app) }
 
+    /// Bottom-bar Show Ready (`showReadyToggle`). Display filter only.
+    func setShowReady(
+        _ on: Bool,
+        timeout: TimeInterval = UITestTimeout.long,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        bottomBar.setShowReady(on, timeout: timeout, file: file, line: line)
+    }
+
     var toolBanner: ToolBannerComponent { ToolBannerComponent(app: app) }
 
     func queueRow(stem: String) -> QueueRowComponent {

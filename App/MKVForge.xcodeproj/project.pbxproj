@@ -25,6 +25,7 @@
 		61BE4562897AAC7D7FB61A9F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732DB57213FB70CB4DBF41FC /* AppDelegate.swift */; };
 		6428359D6410411EEFF987DF /* SplitStillChangingUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AB3D66A009512FE7C437E8 /* SplitStillChangingUITests.swift */; };
 		6753D013FA4C907A711E6668 /* MainWindowPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8158EA0016D4686F63028DC5 /* MainWindowPage.swift */; };
+		7A07E0E67D8DD4582CEB520F /* ShowReadyRemuxUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739CA4BBDF8C07B0BE87091B /* ShowReadyRemuxUITests.swift */; };
 		8A01A6D062C3D5F296809C63 /* MainWindowSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DF373DACD8A87D7E85CFEF /* MainWindowSmokeUITests.swift */; };
 		8DE5A9F0C3215EE3970AF053 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2696D2594905DBACDA07FB03 /* AppModel.swift */; };
 		8EC8C240AA38B4273A0C7326 /* QueueRowComponent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28EA4CFE3B3345DB6747F48 /* QueueRowComponent.swift */; };
@@ -45,6 +46,7 @@
 		EFBC01C4967140D2D9ECFC08 /* BaseUITest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE507E6FBC58A20CFF649DD /* BaseUITest.swift */; };
 		F3392EE3C32D5BF951D95EBE /* SettingsEssentialsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A17AAAA8986EB8B5E5D3AA /* SettingsEssentialsUITests.swift */; };
 		F7C71CF93494BB6743B18874 /* SplitExistingOutputUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65945D429A28CF51FF4AA4A4 /* SplitExistingOutputUITests.swift */; };
+		FC9D4A6A107B649427BB72D2 /* ShowReadySplitUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCD941874875EEB52AD11CB /* ShowReadySplitUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +82,7 @@
 		65945D429A28CF51FF4AA4A4 /* SplitExistingOutputUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitExistingOutputUITests.swift; sourceTree = "<group>"; };
 		6B571F909AA0951C9EB942F8 /* HelloWorldUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelloWorldUITests.swift; sourceTree = "<group>"; };
 		732DB57213FB70CB4DBF41FC /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		739CA4BBDF8C07B0BE87091B /* ShowReadyRemuxUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowReadyRemuxUITests.swift; sourceTree = "<group>"; };
 		75A73DF67C5EFC255E1A647E /* UITestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestFixtures.swift; sourceTree = "<group>"; };
 		8158EA0016D4686F63028DC5 /* MainWindowPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowPage.swift; sourceTree = "<group>"; };
 		84AB3D66A009512FE7C437E8 /* SplitStillChangingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitStillChangingUITests.swift; sourceTree = "<group>"; };
@@ -89,6 +92,7 @@
 		AC2ECD6C097DCA7643D8B8BF /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
 		B3897DCF252CF1A79E0596B2 /* BasePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasePage.swift; sourceTree = "<group>"; };
 		BB08216AEF3E32F3EDDFEDBD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BCCD941874875EEB52AD11CB /* ShowReadySplitUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowReadySplitUITests.swift; sourceTree = "<group>"; };
 		C8D491A04A8E2B6CCB670B83 /* UITestingLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestingLaunch.swift; sourceTree = "<group>"; };
 		D8DF373DACD8A87D7E85CFEF /* MainWindowSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowSmokeUITests.swift; sourceTree = "<group>"; };
 		DA3C4B98FB3BE0BDBABCAF61 /* mkv-forge */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "mkv-forge"; path = ..; sourceTree = SOURCE_ROOT; };
@@ -147,6 +151,8 @@
 				50F29DC4A87B1660655AEFF3 /* RemuxRunUITests.swift */,
 				5063002AC94E7B2FD8456218 /* RemuxVideoOnlyNoteUITests.swift */,
 				04A17AAAA8986EB8B5E5D3AA /* SettingsEssentialsUITests.swift */,
+				739CA4BBDF8C07B0BE87091B /* ShowReadyRemuxUITests.swift */,
+				BCCD941874875EEB52AD11CB /* ShowReadySplitUITests.swift */,
 				29EE229ABEFF5F05ABB443A7 /* SplitEmptyFileUITests.swift */,
 				65945D429A28CF51FF4AA4A4 /* SplitExistingOutputUITests.swift */,
 				FD58BB5DA86B2B18484192FB /* SplitReadyUITests.swift */,
@@ -349,6 +355,8 @@
 				60365395663F1EFE95E79D0E /* RemuxVideoOnlyNoteUITests.swift in Sources */,
 				F3392EE3C32D5BF951D95EBE /* SettingsEssentialsUITests.swift in Sources */,
 				022DBFDDC8F230C70399CA34 /* SettingsPage.swift in Sources */,
+				7A07E0E67D8DD4582CEB520F /* ShowReadyRemuxUITests.swift in Sources */,
+				FC9D4A6A107B649427BB72D2 /* ShowReadySplitUITests.swift in Sources */,
 				DBA4E066D9581D6FF28CED4D /* SplitEmptyFileUITests.swift in Sources */,
 				F7C71CF93494BB6743B18874 /* SplitExistingOutputUITests.swift in Sources */,
 				2E19C82D690C16DA9B143CF2 /* SplitPage.swift in Sources */,
@@ -401,7 +409,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -413,7 +421,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.6.0;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForge;
 				PRODUCT_NAME = MKVForge;
@@ -491,7 +499,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -503,7 +511,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.6.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arezhik.MKVForge;
 				PRODUCT_NAME = MKVForge;
