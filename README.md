@@ -1,5 +1,9 @@
 # MKVForge
 
+
+> [!WARNING]
+> Moved to Arezhik/media-forge
+
 A native macOS app (SwiftUI, macOS 15.0 or later, universal for Apple silicon and Intel).
 It splits `.mkv` files into `.mka` (audio, subtitles, chapters) and remuxes video-only `.mkv` files with a matching `.mka`, in folder batches, using `mkvmerge`. Requirements: docs/scaffold.md. Layout: docs/design/v1-layout-contract_v2.md.
 
