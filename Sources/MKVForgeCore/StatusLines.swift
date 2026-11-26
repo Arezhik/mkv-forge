@@ -10,8 +10,9 @@ import Foundation
 //   stopping`**` · 2 of 4 complete`; **`Stopped`**` · 3 of 4 complete`; **`Finished`**` ·
 //   3 done (1 with warning) · 2 flagged · 1 failed`. Zero counts are hidden.
 // - During a re-scan the bar keeps the previous summary until the new rows swap in.
-// - Progress column (152 pt): running = files completed ÷ files in the run, empty
-//   caption; finished = full bar and `3 .mka saved`; absent when idle and after a stop.
+// - Progress column (152 pt): running = files completed ÷ files in the run. The caption
+//   is the time remaining when the estimate is stable, and empty while cancelling.
+//   Finished = full bar and `3 .mka saved`. Absent when idle and after a stop.
 // - Show in Finder: after a finish or a Cancel that wrote at least one file.
 
 public struct SummaryText: Equatable, Sendable {
@@ -31,7 +32,8 @@ public struct SummaryText: Equatable, Sendable {
 public struct ProgressColumn: Equatable, Sendable {
     public var completed: Int
     public var total: Int
-    /// Empty while running (the slot a future ETA would use).
+    /// Running: time remaining, such as `About 2 minutes left`, or empty when that
+    /// estimate is hidden. Cancelling: empty. Finished: `3 .mka saved`.
     public var caption: String
 }
 
@@ -99,7 +101,10 @@ public enum StatusLines {
     /// Nil when the column is absent (idle, scanning a first time, after a stop).
     public static func progressColumn(_ workflow: Workflow, _ state: ModeState) -> ProgressColumn? {
         switch workflow.activity {
-        case .running, .cancelling:
+        case .running:
+            guard let batch = workflow.batch else { return nil }
+            return ProgressColumn(completed: batch.completed, total: batch.total, caption: batch.etaCaption)
+        case .cancelling:
             guard let batch = workflow.batch else { return nil }
             return ProgressColumn(completed: batch.completed, total: batch.total, caption: "")
         case .idle, .scanning:

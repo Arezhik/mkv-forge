@@ -6,6 +6,12 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24 (build 9)
+### Added
+- While a batch runs, the caption under the progress bar shows about how long is left, such as "About 2 minutes left" (#23).
+### Fixed
+- That caption no longer flashes only as the next file starts. It stays up while the file is muxing (#23).
+
 ## [0.7.0] - 2026-11-24 (build 8)
 ### Changed
 - Split requires only an audio track. A source with no subtitles, no chapters, or neither stays Ready and warns (`No subtitle tracks found`, `No chapters found`). A source with no audio track is still an Issue and is not split (#42).

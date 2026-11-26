@@ -18,10 +18,14 @@ import Foundation
 // - mkvmerge runs through `ToolCommand`, so it gets the UTF-8 locale (`ToolEnvironment`,
 //   L27). Its `Warning:` and `Error:` lines are on standard output, so they're logged
 //   here (L28).
+// - The mux process is `mkvmerge --gui-mode`. That flag is not added to `mkvmerge -J`
+//   or `--version`. `#GUI#progress` becomes a throttled ETA on the batch caption.
+//   The throttle uses the runner's wall clock. Elapsed stays the mux time on the sample.
 
 /// Runs mkvmerge with arguments. The app uses `MKVMergeProcess`; tests use a fake.
+/// `onProgress` is each mux percent (0...100) from `#GUI#progress`.
 public protocol MKVMergeRunning: Sendable {
-    func run(_ arguments: [String]) async throws -> ToolCommandResult
+    func run(_ arguments: [String], onProgress: @escaping @Sendable (Int) -> Void) async throws -> ToolCommandResult
 }
 
 /// The installed mkvmerge, run through `ToolCommand` (logging, cancel, UTF-8 locale).
@@ -32,8 +36,31 @@ public struct MKVMergeProcess: MKVMergeRunning {
         self.executable = executable
     }
 
-    public func run(_ arguments: [String]) async throws -> ToolCommandResult {
-        try await ToolCommand.run(executable: executable, arguments: arguments)
+    /// `--gui-mode` is prepended here, not in `MKVMergeCommand`. Identify and version
+    /// do not use this type.
+    static func muxArguments(_ arguments: [String]) -> [String] {
+        ["--gui-mode"] + arguments
+    }
+
+    public func run(_ arguments: [String], onProgress: @escaping @Sendable (Int) -> Void) async throws -> ToolCommandResult {
+        let parser = GUIParserBox()
+        return try await ToolCommand.run(executable: executable, arguments: Self.muxArguments(arguments), onStdoutLine: { line in
+            if let percent = parser.percent(in: line) {
+                onProgress(percent)
+            }
+        })
+    }
+}
+
+/// One stdout reader mutates the parser. The lock keeps that off the runner's task.
+private final class GUIParserBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var parser = MKVMergeGUIParser()
+
+    func percent(in line: String) -> Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        return parser.progressPercent(in: line)
     }
 }
 
@@ -42,6 +69,8 @@ public enum RunEvent: Equatable, Sendable {
     /// `index` counts from 1.
     case started(id: String, index: Int, total: Int)
     case finished(id: String, status: JobStatus)
+    /// The caption under the batch bar. Empty hides it. Throttled to about 10 a second.
+    case progress(caption: String)
     case batchFinished(BatchSummary)
 }
 
@@ -49,15 +78,18 @@ public final class BatchRunner: Sendable {
     private let tool: any MKVMergeRunning
     private let identifier: any TrackIdentifying
     private let stopFlag = StopFlag()
+    /// ETA clock. Tests pass a fixed clock; the app uses the wall clock.
+    private let clock: @Sendable () -> Date
 
-    public init(tool: any MKVMergeRunning, identifier: any TrackIdentifying) {
+    public init(tool: any MKVMergeRunning, identifier: any TrackIdentifying, clock: @escaping @Sendable () -> Date = { Date() }) {
         self.tool = tool
         self.identifier = identifier
+        self.clock = clock
     }
 
     /// The installed mkvmerge for both running and identifying.
-    public convenience init(executable: String) {
-        self.init(tool: MKVMergeProcess(executable: executable), identifier: MKVMergeIdentifier(executable: executable))
+    public convenience init(executable: String, clock: @escaping @Sendable () -> Date = { Date() }) {
+        self.init(tool: MKVMergeProcess(executable: executable), identifier: MKVMergeIdentifier(executable: executable), clock: clock)
     }
 
     /// Cancel: finish the current file, then stop. Safe from any thread.
@@ -68,12 +100,14 @@ public final class BatchRunner: Sendable {
     public var isStopRequested: Bool { stopFlag.isSet }
 
     /// Runs `jobs` one at a time and returns the summary. `flaggedCount` is the scan's
-    /// flagged rows, for the summary. `onEvent` is called from the runner's task.
+    /// flagged rows, for the summary. `onEvent` may arrive from the runner's task or,
+    /// for a progress caption, from the tool's stdout reader.
     @discardableResult
-    public func run(_ jobs: [RunJob], flaggedCount: Int, onEvent: @Sendable (RunEvent) -> Void = { _ in }) async -> BatchSummary {
+    public func run(_ jobs: [RunJob], flaggedCount: Int, onEvent: @escaping @Sendable (RunEvent) -> Void = { _ in }) async -> BatchSummary {
         stopFlag.clear()
         let mode = jobs.first?.mode ?? .split
         var summary = BatchSummary(mode: mode, filesInRun: jobs.count, flagged: flaggedCount)
+        var finishedDurations: [TimeInterval] = []
         let modeName = mode == .split ? "Split" : "Remux"
         DebugLog.shared.record(.queue, "Run \(modeName) started: \(jobs.count) files")
         for (offset, job) in jobs.enumerated() {
@@ -86,13 +120,23 @@ public final class BatchRunner: Sendable {
             }
             onEvent(.started(id: job.id, index: index, total: jobs.count))
             DebugLog.shared.record(.work, "File \(index) of \(jobs.count) started")
+            let publisher = ETAPublisher(
+                finished: finishedDurations,
+                queuedAfterCurrent: jobs.count - index,
+                isCancelled: { [stopFlag] in stopFlag.isSet },
+                onEvent: onEvent,
+                clock: clock
+            )
             let status: JobStatus
             do {
-                status = try await runOne(job)
+                status = try await runOne(job, publisher: publisher)
             } catch {
                 // Only cancellation reaches here: a hard stop.
                 status = .canceled
                 summary.stopped = true
+            }
+            if let duration = publisher.muxDuration {
+                finishedDurations.append(duration)
             }
             log(status, index: index, total: jobs.count)
             summary.record(status)
@@ -107,9 +151,9 @@ public final class BatchRunner: Sendable {
     // MARK: One file
 
     /// Pre-checks, then mkvmerge. Throws only `CancellationError` (a hard stop).
-    func runOne(_ job: RunJob) async throws -> JobStatus {
+    func runOne(_ job: RunJob, publisher: ETAPublisher? = nil) async throws -> JobStatus {
         if let failure = try await precheck(job) { return failure }
-        return try await execute(job, sourceTracks: job.sourceInfo.tracks)
+        return try await execute(job, sourceTracks: job.sourceInfo.tracks, publisher: publisher)
     }
 
     /// Nil when the job can run. Otherwise the Failed status it gets instead.
@@ -155,7 +199,7 @@ public final class BatchRunner: Sendable {
 
     /// Writes the temp file with mkvmerge and renames it on success. `sourceTracks` are
     /// the source's tracks (the video's, for Remux). No pre-checks.
-    func execute(_ job: RunJob, sourceTracks: [TrackInfo]) async throws -> JobStatus {
+    func execute(_ job: RunJob, sourceTracks: [TrackInfo], publisher: ETAPublisher? = nil) async throws -> JobStatus {
         let files = FileManager.default
         let temp = job.tempPath
         removeIfPresent(temp)
@@ -172,14 +216,22 @@ public final class BatchRunner: Sendable {
         }
 
         let result: ToolCommandResult
+        let started = publisher == nil ? nil : clock()
+        let readClock = clock
         do {
-            result = try await tool.run(arguments)
+            result = try await tool.run(arguments) { percent in
+                guard let publisher, let started else { return }
+                publisher.receive(percent: percent, elapsed: readClock().timeIntervalSince(started))
+            }
         } catch is CancellationError {
             removeIfPresent(temp)
             throw CancellationError()
         } catch {
             removeIfPresent(temp)
             return .failed(reason: "mkvmerge could not be started", detail: error.localizedDescription)
+        }
+        if let publisher, let started {
+            publisher.noteDuration(readClock().timeIntervalSince(started))
         }
         if Task.isCancelled {
             removeIfPresent(temp)
@@ -238,6 +290,64 @@ public final class BatchRunner: Sendable {
 
     static func cut(_ text: String, limit: Int = 2000) -> String {
         text.count <= limit ? text : String(text.prefix(limit)) + "…"
+    }
+}
+
+/// Turns mux percents into a throttled ETA caption. One instance per file.
+final class ETAPublisher: @unchecked Sendable {
+    private let lock = NSLock()
+    private var eta = RunETA()
+    private let finished: [TimeInterval]
+    private let queuedAfterCurrent: Int
+    private let isCancelled: @Sendable () -> Bool
+    private let onEvent: @Sendable (RunEvent) -> Void
+    private let clock: @Sendable () -> Date
+    private var duration: TimeInterval?
+
+    init(
+        finished: [TimeInterval],
+        queuedAfterCurrent: Int,
+        isCancelled: @escaping @Sendable () -> Bool,
+        onEvent: @escaping @Sendable (RunEvent) -> Void,
+        clock: @escaping @Sendable () -> Date
+    ) {
+        self.finished = finished
+        self.queuedAfterCurrent = queuedAfterCurrent
+        self.isCancelled = isCancelled
+        self.onEvent = onEvent
+        self.clock = clock
+    }
+
+    func receive(percent: Int, elapsed: TimeInterval) {
+        let sample = RunETA.Sample(
+            percent: percent,
+            elapsed: elapsed,
+            finishedDurations: finished,
+            queuedAfterCurrent: queuedAfterCurrent,
+            cancelled: isCancelled()
+        )
+        // `elapsed` is only the sample. The throttle needs a wall clock: a burst
+        // that shares one elapsed used to collapse onto one date and drop every
+        // sentence after the first, then force-hide at 100%.
+        let now = clock()
+        lock.lock()
+        let event = eta.event(for: sample, at: now)
+        lock.unlock()
+        if let event {
+            onEvent(event)
+        }
+    }
+
+    func noteDuration(_ value: TimeInterval) {
+        lock.lock()
+        duration = value
+        lock.unlock()
+    }
+
+    var muxDuration: TimeInterval? {
+        lock.lock()
+        defer { lock.unlock() }
+        return duration
     }
 }
 

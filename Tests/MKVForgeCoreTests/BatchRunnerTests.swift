@@ -13,8 +13,14 @@ final class BatchRunnerTests: XCTestCase {
         folders.remove()
     }
 
-    private func run(_ jobs: [RunJob], _ tool: FakeMKVMerge, identifier: FakeIdentifier? = nil, flagged: Int = 0) async -> (BatchSummary, EventLog) {
-        let runner = BatchRunner(tool: tool, identifier: identifier ?? RunFixture.identifier(for: jobs))
+    private func run(
+        _ jobs: [RunJob],
+        _ tool: FakeMKVMerge,
+        identifier: FakeIdentifier? = nil,
+        flagged: Int = 0,
+        clock: @escaping @Sendable () -> Date = { Date() }
+    ) async -> (BatchSummary, EventLog) {
+        let runner = BatchRunner(tool: tool, identifier: identifier ?? RunFixture.identifier(for: jobs), clock: clock)
         tool.runner = runner
         let log = EventLog()
         let summary = await runner.run(jobs, flaggedCount: flagged) { log.append($0) }
@@ -173,5 +179,186 @@ final class BatchRunnerTests: XCTestCase {
         XCTAssertEqual(jobs.map(\.baseName), ["a", "c"])
         XCTAssertEqual(jobs.first?.tempPath, "/o/.a.partial.mka")
         XCTAssertEqual(jobs.first?.sourceInfo, info)
+    }
+
+    func testGUIWarningAndErrorKeepTheSameReason() async throws {
+        let warning = "Warning: '/x/A.mkv': A track with the ID 9 was requested but not found in the file. The corresponding option will be ignored."
+        let guiWarning = "#GUI#warning '/x/A.mkv': A track with the ID 9 was requested but not found in the file. The corresponding option will be ignored."
+        let warned = try RunFixture.split("A", in: folders)
+        let (_, warningLog) = await run([warned], FakeMKVMerge(["A": FakeRun(status: 1, output: "mkvmerge v82.0\r\(guiWarning)\n")]))
+        XCTAssertEqual(warningLog.statuses["A"]?.reasonText, warning)
+
+        let failed = try RunFixture.split("B", in: folders)
+        let (_, errorLog) = await run([failed], FakeMKVMerge(["B": FakeRun(status: 2, output: "#GUI#error The type of file '/x/B.mkv' could not be recognized.\r")]))
+        XCTAssertEqual(errorLog.statuses["B"]?.reasonText, "mkvmerge exit 2: The type of file '/x/B.mkv' could not be recognized.")
+    }
+
+    func testProgressBlendsTheCurrentFileWithFinishedDurations() async throws {
+        let jobs = try ["A", "B", "C"].map { try RunFixture.split($0, in: folders) }
+        let origin = Date(timeIntervalSince1970: 1_700_000_000)
+        // A: start, 50% at +10s, end at +16s (duration 16). Two files still queued.
+        // B: start, 25% at +10s from its start, end +20s later. One file still queued.
+        // C: start and end, no percent.
+        // Each progress reads the clock twice: once for elapsed, once for the throttle.
+        let times = [
+            origin,
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(16),
+            origin.addingTimeInterval(16),
+            origin.addingTimeInterval(26),
+            origin.addingTimeInterval(26),
+            origin.addingTimeInterval(36),
+            origin.addingTimeInterval(36),
+            origin.addingTimeInterval(36),
+        ]
+        let clock = ScriptedClock(times)
+        let tool = FakeMKVMerge([
+            "A": FakeRun(status: 0, progress: [50]),
+            "B": FakeRun(status: 0, progress: [25]),
+            "C": FakeRun(status: 0),
+        ])
+        let (_, log) = await run(jobs, tool, clock: { clock.call() })
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 50 seconds left", "About 46 seconds left"])
+        XCTAssertEqual(clock.calls, times.count)
+        XCTAssertEqual(log.statuses["A"], .done(outputPath: jobs[0].outputPath))
+        XCTAssertFalse(tool.calls.contains { $0.contains("--gui-mode") }, "the fake sees the command, not the process flag")
+    }
+
+    func testProgressHidesAtZeroPercentAndAtOneHundred() async throws {
+        let job = try RunFixture.split("A", in: folders)
+        let origin = Date(timeIntervalSince1970: 1_800_000_000)
+        // Each progress reads the clock twice: once for elapsed, once for the throttle.
+        let times = [
+            origin,
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10),
+            origin.addingTimeInterval(10.05),
+            origin.addingTimeInterval(10.05),
+            origin.addingTimeInterval(20),
+        ]
+        let clock = ScriptedClock(times)
+        let tool = FakeMKVMerge(["A": FakeRun(status: 0, progress: [0, 50, 100])])
+        let (_, log) = await run([job], tool, clock: { clock.call() })
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 10 seconds left", ""])
+        XCTAssertEqual(clock.calls, times.count)
+    }
+
+    /// The slowed mkvmerge log: 11, 29, 48, 66, 85, 99, 100 about 0.9s apart.
+    /// A non-empty caption is published before 100%, and 100% publishes "".
+    func testProgressSamplesSpacedLikeALongMuxShowACaptionUntilOneHundred() async throws {
+        let job = try RunFixture.split("A", in: folders)
+        let origin = Date(timeIntervalSince1970: 1_900_000_000)
+        let percents = [11, 29, 48, 66, 85, 99, 100]
+        var times = [origin]
+        for index in 1...percents.count {
+            let sample = origin.addingTimeInterval(0.9 * Double(index))
+            times.append(sample) // elapsed
+            times.append(sample) // wall clock for the throttle
+        }
+        times.append(origin.addingTimeInterval(0.9 * Double(percents.count)))
+        let clock = ScriptedClock(times)
+        let tool = FakeMKVMerge(["A": FakeRun(status: 0, progress: percents)])
+        let (_, log) = await run([job], tool, clock: { clock.call() })
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, [
+            "About 7 seconds left",
+            "About 4 seconds left",
+            "About 3 seconds left",
+            "About 2 seconds left",
+            "About 1 second left",
+            "",
+        ])
+        XCTAssertFalse(captions.dropLast().contains(""))
+        XCTAssertEqual(clock.calls, times.count)
+    }
+
+    /// Same sample elapsed, wall clocks at least 0.1s apart. Fails if `receive` passes
+    /// `Date(timeIntervalSinceReferenceDate: elapsed)` as `now`: both samples would
+    /// share one throttle date and the second sentence would be dropped.
+    func testSameElapsedPublishesWhenWallClocksDiffer() {
+        let origin = Date(timeIntervalSince1970: 1_910_000_000)
+        let clock = ScriptedClock([origin, origin.addingTimeInterval(0.1)])
+        let log = EventLog()
+        let publisher = ETAPublisher(
+            finished: [],
+            queuedAfterCurrent: 0,
+            isCancelled: { false },
+            onEvent: { log.append($0) },
+            clock: { clock.call() }
+        )
+        publisher.receive(percent: 11, elapsed: 5)
+        publisher.receive(percent: 29, elapsed: 5)
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 40 seconds left", "About 12 seconds left"])
+        XCTAssertEqual(clock.calls, 2)
+    }
+
+    /// A burst on one wall-clock instant still drops the middle sentence. 100% hides
+    /// immediately. This is the throttle, not the elapsed-as-date bug.
+    func testSameWallClockDropsTheMiddleSampleAndOneHundredStillHides() {
+        let instant = Date(timeIntervalSince1970: 1_920_000_000)
+        let clock = ScriptedClock([
+            instant,
+            instant,
+            instant.addingTimeInterval(0.05),
+        ])
+        let log = EventLog()
+        let publisher = ETAPublisher(
+            finished: [],
+            queuedAfterCurrent: 0,
+            isCancelled: { false },
+            onEvent: { log.append($0) },
+            clock: { clock.call() }
+        )
+        publisher.receive(percent: 11, elapsed: 5)
+        publisher.receive(percent: 48, elapsed: 6)
+        publisher.receive(percent: 100, elapsed: 7)
+        let captions = log.events.compactMap { event -> String? in
+            if case let .progress(caption) = event { return caption }
+            return nil
+        }
+        XCTAssertEqual(captions, ["About 40 seconds left", ""])
+    }
+}
+
+private final class ScriptedClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private let dates: [Date]
+    private var index = 0
+
+    init(_ dates: [Date]) {
+        self.dates = dates
+    }
+
+    func call() -> Date {
+        lock.lock()
+        defer { lock.unlock() }
+        precondition(index < dates.count, "scripted clock ran out of dates")
+        let date = dates[index]
+        index += 1
+        return date
+    }
+
+    var calls: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return index
     }
 }

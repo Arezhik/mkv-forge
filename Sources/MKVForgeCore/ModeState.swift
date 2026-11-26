@@ -191,6 +191,8 @@ public struct ModeState: Equatable, Sendable {
         switch event {
         case let .started(id, _, _):
             update(id) { $0.runStatus = .working; $0.wontStart = false }
+        case .progress:
+            break
         case let .finished(id, status):
             update(id) { row in
                 row.wontStart = false

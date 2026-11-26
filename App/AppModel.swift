@@ -364,6 +364,10 @@ final class AppModel: ObservableObject {
     }
 
     private func handle(_ event: RunEvent, mode: ScanMode) {
+        if case .progress = event {
+            workflow.apply(event)
+            return
+        }
         mutate(mode) { $0.apply(event) }
         guard case let .batchFinished(summary) = event else {
             workflow.apply(event)

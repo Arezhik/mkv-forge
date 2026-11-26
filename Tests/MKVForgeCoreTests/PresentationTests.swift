@@ -131,9 +131,39 @@ final class StatusLinesTests: XCTestCase {
         XCTAssertEqual(StatusLines.summary(w, state), SummaryText(bold: "2 of 4 complete", rest: " · Splitting C"))
         XCTAssertEqual(StatusLines.subtitle(w, state, toolUsable: true), "Splitting · 2 of 4 complete")
         XCTAssertEqual(StatusLines.progressColumn(w, state), ProgressColumn(completed: 2, total: 4, caption: ""))
+        w.apply(.progress(caption: "About 2 minutes left"))
+        XCTAssertEqual(StatusLines.progressColumn(w, state)?.caption, "About 2 minutes left")
+        XCTAssertEqual(StatusLines.progressColumn(w, state)?.completed, 2)
+        XCTAssertEqual(StatusLines.progressAccessibilityValue(StatusLines.progressColumn(w, state)!), "2 of 4 complete")
         _ = w.cancel()
+        XCTAssertEqual(StatusLines.progressColumn(w, state)?.caption, "")
+        XCTAssertEqual(StatusLines.progressColumn(w, state)?.completed, 2)
         XCTAssertEqual(StatusLines.summary(w, state), SummaryText(bold: "Finishing C, then stopping", rest: " · 2 of 4 complete"))
         XCTAssertEqual(StatusLines.subtitle(w, state, toolUsable: true), "Cancelling · finishing current file")
+    }
+
+    func testProgressDoesNotChangeTheRowOrFractionallyFillTheBar() throws {
+        var state = U.state([U.ready("A"), U.ready("B")])
+        state.beginRun(state.jobs())
+        state.apply(.started(id: "A", index: 1, total: 2))
+        state.apply(.progress(caption: "About 12 seconds left"))
+        let row = state.rows.first { $0.baseName == "A" }
+        let display = RowDisplay(try XCTUnwrap(row), mode: .split, locked: true)
+        XCTAssertTrue(display.showsSpinner)
+        XCTAssertNil(display.symbol)
+        XCTAssertEqual(display.statusText, "Splitting…")
+        XCTAssertEqual(display.spinnerLabel, "Splitting")
+        XCTAssertFalse(display.statusText.contains("%"))
+
+        var workflow = Workflow()
+        XCTAssertTrue(workflow.startRun(mode: .split, total: 2))
+        workflow.apply(.started(id: "A", index: 1, total: 2))
+        workflow.apply(.progress(caption: "About 12 seconds left"))
+        let column = StatusLines.progressColumn(workflow, state)
+        XCTAssertEqual(column, ProgressColumn(completed: 0, total: 2, caption: "About 12 seconds left"))
+        workflow.apply(.progress(caption: ""))
+        XCTAssertEqual(StatusLines.progressColumn(workflow, state)?.caption, "")
+        XCTAssertEqual(StatusLines.progressColumn(workflow, state)?.completed, 0)
     }
 
     func testFinishedSummaryHidesZeroCounts() {

@@ -29,6 +29,8 @@ public struct BatchProgress: Equatable, Sendable {
     public let total: Int
     public var completed = 0
     public var currentName: String?
+    /// Time remaining for the file that is running. Empty when the estimate is hidden.
+    public var etaCaption = ""
 
     public init(mode: ScanMode, total: Int) {
         self.mode = mode
@@ -40,13 +42,18 @@ public struct BatchProgress: Equatable, Sendable {
         switch event {
         case let .started(id, _, _):
             currentName = id
+            etaCaption = ""
+        case let .progress(caption):
+            etaCaption = caption
         case let .finished(_, status):
             switch status {
             case .done, .doneWithWarning, .failed: completed += 1
             case .waiting, .working, .notRun, .canceled: break
             }
+            etaCaption = ""
         case .batchFinished:
             currentName = nil
+            etaCaption = ""
         }
     }
 }

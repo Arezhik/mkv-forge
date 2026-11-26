@@ -235,10 +235,16 @@ public struct ToolCommandResult: Equatable, Sendable {
 
 public enum ToolCommand {
     /// Runs the tool off the main thread. Cancelling the calling task kills the process.
-    public static func run(executable: String, arguments: [String]) async throws -> ToolCommandResult {
+    /// `onStdoutLine` is each complete stdout line, split on `\n` and `\r`, as the bytes
+    /// arrive. The returned buffer is still the full stdout.
+    public static func run(
+        executable: String,
+        arguments: [String],
+        onStdoutLine: (@Sendable (String) -> Void)? = nil
+    ) async throws -> ToolCommandResult {
         let runner = CommandRunner()
         return try await withTaskCancellationHandler {
-            try await runner.start(executable: executable, arguments: arguments)
+            try await runner.start(executable: executable, arguments: arguments, onStdoutLine: onStdoutLine)
         } onCancel: {
             runner.cancel()
         }
@@ -260,11 +266,15 @@ private final class CommandRunner: @unchecked Sendable {
         stop(process)
     }
 
-    func start(executable: String, arguments: [String]) async throws -> ToolCommandResult {
+    func start(
+        executable: String,
+        arguments: [String],
+        onStdoutLine: (@Sendable (String) -> Void)?
+    ) async throws -> ToolCommandResult {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ToolCommandResult, Error>) in
             let resume = ResumeBox(continuation)
             DispatchQueue.global(qos: .userInitiated).async {
-                let result = Result { try self.blocking(executable: executable, arguments: arguments) }
+                let result = Result { try self.blocking(executable: executable, arguments: arguments, onStdoutLine: onStdoutLine) }
                 resume.resume(result)
             }
         }
@@ -302,7 +312,11 @@ private final class CommandRunner: @unchecked Sendable {
         lock.unlock()
     }
 
-    private func blocking(executable: String, arguments: [String]) throws -> ToolCommandResult {
+    private func blocking(
+        executable: String,
+        arguments: [String],
+        onStdoutLine: (@Sendable (String) -> Void)?
+    ) throws -> ToolCommandResult {
         let command = ToolCommandFormatting.line(executable: executable, arguments: arguments)
         if isCancelled {
             ToolCommandFormatting.logCancelled(command)
@@ -337,7 +351,7 @@ private final class CommandRunner: @unchecked Sendable {
         let group = DispatchGroup()
         group.enter()
         DispatchQueue.global(qos: .userInitiated).async {
-            stdout.readToEnd()
+            stdout.readToEnd(onLine: onStdoutLine)
             group.leave()
         }
         group.enter()
@@ -391,6 +405,157 @@ enum ToolCommandFormatting {
     }
 }
 
+/// Splits stdout chunks on `\n` and `\r` (`\r\n` is one break). A trailing `\r` is held
+/// until the next byte, so a split `\r\n` does not become an empty line.
+struct StdoutLineSplitter {
+    private var pending = Data()
+
+    mutating func append(_ chunk: Data) -> [String] {
+        guard !chunk.isEmpty else { return [] }
+        pending.append(chunk)
+        return pull(flush: false)
+    }
+
+    mutating func finish() -> [String] {
+        pull(flush: true)
+    }
+
+    private mutating func pull(flush: Bool) -> [String] {
+        var lines: [String] = []
+        var cursor = pending.startIndex
+        var lineStart = pending.startIndex
+        while cursor < pending.endIndex {
+            let byte = pending[cursor]
+            let isCR = byte == 13
+            let isLF = byte == 10
+            if !isCR && !isLF {
+                cursor = pending.index(after: cursor)
+                continue
+            }
+            if lineStart < cursor {
+                lines.append(Self.decode(pending.subdata(in: lineStart..<cursor)))
+            }
+            let after = pending.index(after: cursor)
+            if isCR, after == pending.endIndex, !flush {
+                pending.removeSubrange(..<cursor)
+                return lines
+            }
+            if isCR, after < pending.endIndex, pending[after] == 10 {
+                cursor = pending.index(after: after)
+            } else {
+                cursor = after
+            }
+            lineStart = cursor
+        }
+        pending.removeSubrange(..<lineStart)
+        if flush, !pending.isEmpty {
+            lines.append(Self.decode(pending))
+            pending.removeAll()
+        }
+        return lines
+    }
+
+    private static func decode(_ data: Data) -> String {
+        String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+    }
+}
+
+/// What one read of a pipe returned. `.end` is a real EOF (zero bytes).
+/// `.failed` is not EOF: the next `.bytes` must still be delivered.
+enum PipePull: Equatable {
+    case bytes(Data)
+    case end
+    /// `EINTR` or `EAGAIN`. Not EOF, and not a failed read.
+    case interrupted
+    case failed(Int32)
+}
+
+/// Assembles pipe chunks into the full buffer and into lines.
+/// A `.failed` pull does not end the stream. The reader stops on `.end`, or after
+/// `failureLimit` failures in a row so a dead descriptor cannot hang the batch.
+struct PipeAssembler {
+    static let failureLimit = 8
+
+    private var splitter = StdoutLineSplitter()
+    private var consecutiveFailures = 0
+    private(set) var data = Data()
+
+    /// True when the reader should keep going. False on EOF or the failure limit.
+    mutating func take(_ pull: PipePull, onLine: ((String) -> Void)?) -> Bool {
+        switch pull {
+        case .interrupted:
+            return true
+        case .end:
+            finish(onLine)
+            return false
+        case let .failed(code):
+            consecutiveFailures += 1
+            DebugLog.shared.record(.error, "Reading the tool pipe failed (errno \(code))", isError: true)
+            if consecutiveFailures >= Self.failureLimit {
+                finish(onLine)
+                return false
+            }
+            return true
+        case let .bytes(chunk):
+            consecutiveFailures = 0
+            guard !chunk.isEmpty else { return true }
+            data.append(chunk)
+            guard let onLine else { return true }
+            for line in splitter.append(chunk) {
+                onLine(line)
+            }
+            return true
+        }
+    }
+
+    private mutating func finish(_ onLine: ((String) -> Void)?) {
+        guard let onLine else { return }
+        for line in splitter.finish() {
+            onLine(line)
+        }
+    }
+}
+
+/// One `read` of whatever is already in the pipe. `FileHandle.read(upToCount:)` is not
+/// used: on Darwin it can block until `count` bytes or EOF, so a short `#GUI#progress`
+/// stream would arrive only when mkvmerge exits. `poll` plus one `read` returns the
+/// bytes already available, which is the same rule as `readabilityHandler` /
+/// `availableData`. A zero-length read is EOF. A negative read is not.
+private enum PipeFile {
+    static func preferShortReads(_ fd: Int32) {
+        let flags = fcntl(fd, F_GETFL, 0)
+        guard flags >= 0 else { return }
+        _ = fcntl(fd, F_SETFL, flags | Int32(O_NONBLOCK))
+    }
+
+    static func pull(_ fd: Int32) -> PipePull {
+        var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        let ready = poll(&pfd, nfds_t(1), -1)
+        if ready < 0 {
+            if errno == EINTR { return .interrupted }
+            return .failed(errno)
+        }
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        let count = buffer.withUnsafeMutableBytes { raw -> Int in
+            guard let base = raw.baseAddress else { return -1 }
+            #if canImport(Darwin)
+            return Darwin.read(fd, base, raw.count)
+            #elseif canImport(Glibc)
+            return Int(Glibc.read(fd, base, raw.count))
+            #elseif canImport(Musl)
+            return Int(Musl.read(fd, base, raw.count))
+            #else
+            return -1
+            #endif
+        }
+        if count > 0 { return .bytes(Data(buffer.prefix(count))) }
+        if count == 0 { return .end }
+        let code = errno
+        if code == EINTR || code == EAGAIN || code == EWOULDBLOCK { return .interrupted }
+        return .failed(code)
+    }
+}
+
 /// Reads a pipe on a background thread. `Pipe` and `FileHandle` are not sendable, so they stay in here.
 private final class PipeReader: @unchecked Sendable {
     private let handle: FileHandle
@@ -400,8 +565,15 @@ private final class PipeReader: @unchecked Sendable {
         self.handle = handle
     }
 
-    func readToEnd() {
-        data = (try? handle.readToEnd()) ?? Data()
+    /// Reads until a real EOF. The stored bytes are the whole stream. `onLine` sees each
+    /// complete line as the chunks arrive; stderr is a different reader. A failed read
+    /// does not end the stream.
+    func readToEnd(onLine: (@Sendable (String) -> Void)? = nil) {
+        let fd = handle.fileDescriptor
+        PipeFile.preferShortReads(fd)
+        var assembler = PipeAssembler()
+        while assembler.take(PipeFile.pull(fd), onLine: onLine) {}
+        data = assembler.data
     }
 }
 
