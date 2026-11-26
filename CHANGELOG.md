@@ -6,7 +6,7 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
-## [0.7.1] - 2026-11-25 (build 9)
+## [0.8.1] - 2026-11-25 (build 10)
 ### Fixed
 - After Cancel, starting the queue again keeps Done and Done · warning rows finished and unchecked. Only the remaining Ready rows run, and the summary counts that new run (#30).
 - Show in Finder opens a normal-sized window. One file is selected; several files open the Output folder with nothing selected. A missing file still shows an alert and does not open Finder (#31).
