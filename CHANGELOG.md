@@ -6,6 +6,11 @@ Every merged PR that changes the shipped app bumps the version in the same PR wi
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-25 (build 10)
+### Fixed
+- After Cancel, starting the queue again keeps Done and Done · warning rows finished and unchecked. Only the remaining Ready rows run, and the summary counts that new run (#30).
+- Show in Finder opens a normal-sized window. One file is selected; several files open the Output folder with nothing selected. A missing file still shows an alert and does not open Finder (#31).
+
 ## [0.8.0] - 2026-11-24 (build 9)
 ### Added
 - While a batch runs, the caption under the progress bar shows about how long is left, such as "About 2 minutes left" (#23).

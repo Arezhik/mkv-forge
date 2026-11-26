@@ -7,8 +7,10 @@ import Foundation
 //   Ready before and is still Ready keeps its checkbox. Flagged rows are unchecked and
 //   can't be checked in v1.
 // - Run: checked Ready rows go Waiting, then Splitting…/Remuxing…, then Done, Done ·
-//   warning or Failed. Cancel shows Waiting rows as Ready with `Won't start: batch
-//   cancelled` until the stop completes; then they show Ready with `—` again.
+//   warning or Failed. A later run marks only its own jobs Waiting; rows left out
+//   keep Done, Done · warning or Failed. Cancel shows Waiting rows as Ready with
+//   `Won't start: batch cancelled` until the stop completes; then they show Ready
+//   with `—` again.
 // - After a finish or a stop, Done and Done · warning rows are unchecked; Failed rows
 //   stay checked, so the next run retries only them.
 
@@ -177,12 +179,15 @@ public struct ModeState: Equatable, Sendable {
         return RunJob.jobs(from: scan, checked: checkedIDs)
     }
 
-    /// Marks the jobs' rows Waiting and clears the previous run's statuses.
+    /// Marks this run's rows Waiting. Rows left out keep their current status.
+    /// Clears `wontStart` on every row and drops the last summary.
     public mutating func beginRun(_ jobs: [RunJob]) {
         let ids = Set(jobs.map(\.id))
         for index in rows.indices {
             rows[index].wontStart = false
-            rows[index].runStatus = ids.contains(rows[index].id) ? .waiting : nil
+            if ids.contains(rows[index].id) {
+                rows[index].runStatus = .waiting
+            }
         }
         lastSummary = nil
     }

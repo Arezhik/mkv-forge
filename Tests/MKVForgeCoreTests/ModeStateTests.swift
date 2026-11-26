@@ -96,6 +96,41 @@ final class ModeStateTests: XCTestCase {
         XCTAssertTrue(state.lastSummary?.stopped ?? false)
     }
 
+    /// Cancel after one file finishes, then run again: the finished row stays finished
+    /// and unchecked, and only the remaining Ready rows go Waiting (#30).
+    func testResumeAfterCancelKeepsFinishedRows() {
+        func resume(keeping status: JobStatus, output: String) {
+            var state = U.state([U.ready("A"), U.ready("B"), U.ready("C")])
+            state.beginRun(state.jobs())
+            state.apply(.finished(id: "A", status: status))
+            state.markCancelling()
+            state.apply(.finished(id: "B", status: .notRun))
+            state.apply(.finished(id: "C", status: .notRun))
+            state.finishBatch(U.summary(filesInRun: 3, [status, .notRun, .notRun], stopped: true))
+            XCTAssertEqual(state.row("A")?.runStatus, status)
+            XCTAssertFalse(state.row("A")!.isChecked)
+            XCTAssertNotNil(state.lastSummary)
+
+            let jobs = state.jobs()
+            XCTAssertEqual(jobs.map(\.id), ["B", "C"])
+            XCTAssertFalse(jobs.map(\.outputPath).contains(output))
+            state.beginRun(jobs)
+            XCTAssertNil(state.lastSummary)
+            XCTAssertEqual(state.row("A")?.runStatus, status)
+            XCTAssertFalse(state.row("A")!.isChecked)
+            XCTAssertEqual(state.row("B")?.runStatus, .waiting)
+            XCTAssertEqual(state.row("C")?.runStatus, .waiting)
+            XCTAssertFalse(state.rows.contains(where: \.wontStart))
+            XCTAssertEqual(state.jobs().map(\.outputPath), ["/o/B.mka", "/o/C.mka"])
+        }
+
+        resume(keeping: .done(outputPath: "/o/A.mka"), output: "/o/A.mka")
+        resume(
+            keeping: .doneWithWarning(outputPath: "/o/A.mka", warnings: ["Warning: x"]),
+            output: "/o/A.mka"
+        )
+    }
+
     func testANewScanOrRunClearsTheLastSummary() {
         var state = U.state([U.ready("A")])
         state.beginRun(state.jobs())
